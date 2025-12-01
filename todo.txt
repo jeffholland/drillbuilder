@@ -12,6 +12,7 @@ Create quiz
 
 Dashboard
 - Download quiz as json or csv file
+- View previous results
 
 Other
 - For each wrong answer, option to send a challenge to quiz creator "my answer should have been accepted" etc. Creators should be able to turn this off in settings (which we also need a settings page)

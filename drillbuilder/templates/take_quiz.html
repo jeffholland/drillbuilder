@@ -33,6 +33,24 @@
 .word-match-item.selected { background: #2563eb; color: white; border-color: #2563eb; }
 .word-match-item.matched { background: #10b981; color: white; opacity: 0.7; cursor: not-allowed; }
 .submit-btn { margin-top: 30px; padding: 12px 24px; font-size: 16px; }
+
+.cloze-blank.typo {
+  background-color: #fef3c7;
+  border: 2px solid #f59e0b;
+}
+
+.blank-result.typo {
+  background-color: #fef3c7;
+  border: 2px solid #f59e0b;
+  color: #92400e;
+}
+
+.typo-note {
+  font-size: 11px;
+  color: #92400e;
+  margin-left: 5px;
+  font-style: italic;
+}
 </style>
 
 <script>
@@ -107,10 +125,8 @@ function renderAllQuestions() {
       if (q.prompt_image_url) {
         div.innerHTML += `<img src="${q.prompt_image_url}" alt="Question image" style="max-width:200px;max-height:200px;margin:10px 0;border-radius:4px" />`;
       }
-      const clozeDiv = document.createElement('div');
-      clozeDiv.className = 'cloze-container';
-      clozeDiv.innerHTML = renderClozeQuestion(q);
-      div.appendChild(clozeDiv);
+      const clozeElement = renderClozeQuestion(q);
+      div.appendChild(clozeElement);
     } else if (q.type === 'word_match') {
       div.innerHTML += `<p>${q.prompt_text}</p>`;
       if (q.prompt_image_url) {
@@ -147,54 +163,69 @@ function toggleMCQOption(questionId, optionId, element) {
 }
 
 function renderClozeQuestion(q) {
-  // Build text with blanks inserted at correct positions
-  if (!q.cloze_question || !q.cloze_question.cloze_words || q.cloze_question.cloze_words.length === 0) {
-    return `<p>${q.prompt_text}</p>`;
+  const div = document.createElement('div');
+  div.className = 'cloze-container';
+  div.style.marginTop = '10px';
+  
+  // Get blanks from the nested cloze_question object
+  const blanks = q.cloze_question?.cloze_words || q.cloze_blanks || [];
+  const fullText = q.cloze_question?.full_text || q.full_text || q.prompt_text || '';
+  
+  if (!fullText) {
+    div.innerHTML = '<p>Error: No text available for this cloze question.</p>';
+    return div;
   }
   
-  const fullText = q.cloze_question.full_text;
-  const words = q.cloze_question.cloze_words.sort((a, b) => a.char_position - b.char_position);
-  console.log(words)
+  if (blanks.length === 0) {
+    div.innerHTML = `<p>${fullText}</p><p><em>No blanks defined for this question.</em></p>`;
+    return div;
+  }
   
-  // Build HTML by replacing each word with a blank input
-  let html = '<div>';
+  const words = blanks.map(b => ({
+    word: b.word || b.correct_answer,
+    position: b.char_position
+  }));
+  
+  let html = '';
   let currentPos = 0;
   
-  words.forEach((w, idx) => {
+  blanks.forEach((blank, idx) => {
     // Add text before this blank
-    const textBefore = fullText.substring(currentPos, w.char_position);
-    // console.log(`Cloze word ${idx}: "${w.word}" at position ${w.char_position}`);
-    // console.log(`Adding text before blank ${idx} at position ${w.char_position}: "${textBefore}"`);
-    html += textBefore;
+    html += fullText.substring(currentPos, blank.char_position);
     
-    // Add blank input (inline, no extra spacing)
-    html += `<input type="text" data-question-id="${q.id}" data-blank-idx="${idx}" placeholder="___" style="width:120px; padding:4px 8px; border:1px solid #ddd; border-radius:4px; font-size:14px; display:inline;" />`;
+    const correctAnswer = blank.word || blank.correct_answer;
     
-    // Move position past the word that should be blanked
-    currentPos = w.char_position + w.word.length;
-    // console.log(`Moving currentPos to ${currentPos} after blank ${idx}`);
+    // Add input for this blank
+    html += `<input type="text" 
+      class="cloze-blank" 
+      data-question-id="${q.id}" 
+      data-blank-idx="${idx}"
+      style="display:inline;width:${Math.max(60, correctAnswer.length * 10)}px;margin:0 2px;padding:2px 4px;border:1px solid #d1d5db;border-radius:3px;" />`;
+    
+    currentPos = blank.char_position + correctAnswer.length;
   });
   
-  // Add remaining text after last blank
+  // Add remaining text
   html += fullText.substring(currentPos);
-  html += '</div>';
-
-  console.log('Cloze HTML:', html);
   
-  // Add word bank if enabled
-  if (q.cloze_question.word_bank) {
+  const textP = document.createElement('p');
+  textP.innerHTML = html;
+  textP.style.lineHeight = '2';
+  div.appendChild(textP);
+  
+  // Word bank
+  const showWordBank = q.cloze_question?.word_bank || q.show_word_bank;
+  if (showWordBank) {
+    const bankDiv = document.createElement('div');
+    bankDiv.className = 'word-bank';
+    bankDiv.innerHTML = '<strong>Word Bank:</strong> ';
     const allWords = words.map(w => w.word);
     const shuffled = allWords.sort(() => Math.random() - 0.5);
-    html += '<div style="margin-top:20px; padding:15px; background:#f0f0f0; border-radius:5px;">';
-    html += '<strong>Word Bank:</strong><br/>';
-    html += '<div style="margin-top:10px;">';
-    shuffled.forEach(word => {
-      html += `<span style="display:inline-block; margin:5px; padding:5px 10px; background:white; border:1px solid #ccc; border-radius:3px;">${word}</span>`;
-    });
-    html += '</div></div>';
+    bankDiv.innerHTML += shuffled.join(', ');
+    div.appendChild(bankDiv);
   }
   
-  return html;
+  return div;
 }
 
 function renderWordMatchQuestion(q) {

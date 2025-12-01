@@ -49,13 +49,25 @@ def submit_question(attempt_id):
 
     # Use polymorphic validation - works for all question types!
     try:
-        was_correct, feedback = question.validate_answer(response)
+        result = question.validate_answer(response)
+        
+        # Handle both 2-tuple and 3-tuple returns (cloze returns 3 values)
+        if len(result) == 3:
+            was_correct, feedback, details = result
+        else:
+            was_correct, feedback = result
+            details = None
+            
     except Exception as e:
         # Fallback validation for edge cases
         was_correct = False
         feedback = f"Error validating answer: {str(e)}"
+        details = None
+        print(f"Validation error: {e}")
+        import traceback
+        traceback.print_exc()
 
-    print(f"User answered question {question.id} with response {response}. Correct: {was_correct} Feedback: {feedback}")
+    print(f"User answered question {question.id} (type: {question.type}) with response {response}. Correct: {was_correct} Feedback: {feedback}")
 
     ua = UserAnswer(
         attempt_id=attempt.id, 
@@ -77,7 +89,11 @@ def submit_question(attempt_id):
 
     db.session.commit()
 
-    return jsonify({"correct": was_correct}), 200
+    response_data = {"correct": was_correct}
+    if details:
+        response_data["details"] = details
+
+    return jsonify(response_data), 200
 
 
 @bp.post("/<int:attempt_id>/finish")
@@ -108,3 +124,62 @@ def finish_attempt(attempt_id):
         "correct": sum(1 for a in attempt.answers if a.was_correct),
         "total": total
     }), 200
+
+
+@bp.route('/quizzes/<int:quiz_id>/attempts', methods=['POST'])
+@jwt_required()
+def submit_attempt(quiz_id):
+    """Submit a quiz attempt and get results."""
+    user_id = get_jwt_identity()
+    data = request.get_json()
+    responses = data.get('responses', {})
+    
+    quiz = Quiz.query.get_or_404(quiz_id)
+    
+    # Calculate score
+    total_questions = len(quiz.questions)
+    correct_count = 0
+    results = []
+    
+    for question in quiz.questions:
+        user_response = responses.get(str(question.id))
+        
+        if question.question_type == 'cloze':
+            is_correct, feedback, details = question.validate_answer(user_response or {})
+            results.append({
+                'question_id': question.id,
+                'is_correct': is_correct,
+                'feedback': feedback,
+                'details': details  # Include per-blank validation details
+            })
+        else:
+            is_correct, feedback = question.validate_answer(user_response)
+            results.append({
+                'question_id': question.id,
+                'is_correct': is_correct,
+                'feedback': feedback
+            })
+        
+        if is_correct:
+            correct_count += 1
+    
+    score = (correct_count / total_questions * 100) if total_questions > 0 else 0
+    
+    # Save attempt
+    attempt = QuizAttempt(
+        user_id=user_id,
+        quiz_id=quiz_id,
+        score=score,
+        responses=json.dumps(responses),
+        results=json.dumps(results)
+    )
+    db.session.add(attempt)
+    db.session.commit()
+    
+    return jsonify({
+        'attempt_id': attempt.id,
+        'score': score,
+        'correct_count': correct_count,
+        'total_questions': total_questions,
+        'results': results
+    }), 201

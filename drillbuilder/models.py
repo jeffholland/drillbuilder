@@ -180,7 +180,7 @@ class MCQOption(AnswerComponentBase):
 # ============================================================================
 
 class ClozeQuestion(QuestionBase):
-    """Fill-in-the-blank question with multiple blanks."""
+    """A cloze (fill-in-the-blank) question."""
     
     __mapper_args__ = {
         'polymorphic_identity': 'cloze',
@@ -189,7 +189,7 @@ class ClozeQuestion(QuestionBase):
     full_text = db.Column(db.Text, nullable=True)
     show_word_bank = db.Column(db.Boolean, default=False, nullable=True)
     case_sensitive = db.Column(db.Boolean, default=False, nullable=True)
-    
+        
     def validate_answer(self, user_response):
         """
         Validate cloze answer.
@@ -198,22 +198,42 @@ class ClozeQuestion(QuestionBase):
             user_response: dict mapping blank index (0, 1, 2...) to user's answer
             
         Returns:
-            tuple: (is_correct, feedback)
+            tuple: (is_correct, feedback, details)
+            details is a dict mapping blank index to validation result
         """
         blanks = sorted(self.answer_components, key=lambda x: x.position)
         total_blanks = len(blanks)
         correct_count = 0
+        typo_count = 0
+        details = {}
         
         for idx, blank in enumerate(blanks):
-            # Frontend sends blank index as string key
             user_answer = user_response.get(str(idx), '').strip()
-            if blank.is_correct_answer(user_answer, self.case_sensitive):
+            result = blank.validate_answer(user_answer, self.case_sensitive)
+            
+            # Get the correct answer - support both old and new schema
+            correct_ans = blank.correct_answer or getattr(blank, 'word', None)
+            
+            details[str(idx)] = {
+                'result': result,
+                'user_answer': user_answer,
+                'correct_answer': correct_ans
+            }
+            
+            if result == 'correct':
                 correct_count += 1
+            elif result == 'typo':
+                typo_count += 1
+                correct_count += 1  # Count typos as correct for scoring
         
         is_correct = correct_count == total_blanks
-        feedback = f"Got {correct_count} out of {total_blanks} blanks correct."
         
-        return is_correct, feedback
+        if typo_count > 0:
+            feedback = f"Got {correct_count} out of {total_blanks} blanks correct ({typo_count} with minor typos)."
+        else:
+            feedback = f"Got {correct_count} out of {total_blanks} blanks correct."
+        
+        return is_correct, feedback, details
     
     def to_dict(self):
         data = super().to_dict()
@@ -235,41 +255,122 @@ class ClozeBlank(AnswerComponentBase):
     alternate_answers = db.Column(db.Text, nullable=True)  # JSON array
     char_position = db.Column(db.Integer, nullable=True)
     
-    def is_correct_answer(self, user_answer, case_sensitive=False):
-        """Check if user's answer matches the correct answer or any alternates."""
-        import json
+    def _normalize_answer(self, text):
+        """Remove punctuation and normalize for comparison."""
+        import string
+        # Remove leading/trailing punctuation
+        text = text.strip(string.punctuation + ' ')
+        return text.lower()
+    
+    def _is_typo(self, user_answer, correct_answer):
+        """Check if user answer is close enough to be considered a typo using Levenshtein distance."""
+        user_answer = user_answer.lower().strip()
+        correct_answer = correct_answer.lower().strip()
         
-        if not case_sensitive:
-            user_answer = user_answer.lower()
-            correct = self.correct_answer.lower()
-        else:
-            correct = self.correct_answer
+        # If answers are identical after normalization, it's correct
+        if user_answer == correct_answer:
+            return False
         
-        if user_answer == correct:
+        # Calculate Levenshtein distance
+        def levenshtein_distance(s1, s2):
+            if len(s1) < len(s2):
+                return levenshtein_distance(s2, s1)
+            if len(s2) == 0:
+                return len(s1)
+            
+            previous_row = range(len(s2) + 1)
+            for i, c1 in enumerate(s1):
+                current_row = [i + 1]
+                for j, c2 in enumerate(s2):
+                    insertions = previous_row[j + 1] + 1
+                    deletions = current_row[j] + 1
+                    substitutions = previous_row[j] + (c1 != c2)
+                    current_row.append(min(insertions, deletions, substitutions))
+                previous_row = current_row
+            
+            return previous_row[-1]
+        
+        distance = levenshtein_distance(user_answer, correct_answer)
+        max_length = max(len(user_answer), len(correct_answer))
+        
+        # Consider it a typo if:
+        # - Distance is 1 for words of any length (single character difference)
+        # - Distance is 2 for words longer than 5 characters
+        if distance == 1:
             return True
-        
-        # Check alternates
-        if self.alternate_answers:
-            try:
-                alternates = json.loads(self.alternate_answers)
-                for alt in alternates:
-                    compare_alt = alt.lower() if not case_sensitive else alt
-                    if user_answer == compare_alt:
-                        return True
-            except (json.JSONDecodeError, TypeError):
-                pass
+        if distance == 2 and max_length > 5:
+            return True
         
         return False
     
-    def to_dict(self):
+    def validate_answer(self, user_answer, case_sensitive=False):
+        """
+        Check if user's answer matches the correct answer or any alternates.
+        Returns: ('correct', 'typo', or 'incorrect')
+        """
         import json
+        
+        # Get the correct answer - support both old (word) and new (correct_answer) schema
+        correct = self.correct_answer or getattr(self, 'word', None)
+        
+        if not correct:
+            return 'incorrect'
+        
+        # Normalize user answer (remove punctuation, handle case)
+        user_normalized = self._normalize_answer(user_answer)
+        
+        if not user_normalized:
+            return 'incorrect'
+        
+        # Normalize correct answer
+        correct_normalized = self._normalize_answer(correct)
+        
+        # Check exact match (after normalization)
+        if user_normalized == correct_normalized:
+            return 'correct'
+        
+        # Check alternates - support both old and new schema
+        alternates_json = self.alternate_answers or getattr(self, 'alternates', None)
+        if alternates_json:
+            try:
+                alternates = json.loads(alternates_json) if isinstance(alternates_json, str) else alternates_json
+                if alternates:
+                    for alt in alternates:
+                        alt_normalized = self._normalize_answer(alt)
+                        if user_normalized == alt_normalized:
+                            return 'correct'
+            except (json.JSONDecodeError, TypeError):
+                pass
+        
+        # Check if it's a typo of the correct answer
+        if self._is_typo(user_answer, correct):
+            return 'typo'
+        
+        # Check if it's a typo of any alternate
+        if alternates_json:
+            try:
+                alternates = json.loads(alternates_json) if isinstance(alternates_json, str) else alternates_json
+                if alternates:
+                    for alt in alternates:
+                        if self._is_typo(user_answer, alt):
+                            return 'typo'
+            except (json.JSONDecodeError, TypeError):
+                pass
+        
+        return 'incorrect'
+    
+    def to_dict(self):
         data = super().to_dict()
-        data['correct_answer'] = self.correct_answer
+        # Support both old (word) and new (correct_answer) schema
+        data['correct_answer'] = self.correct_answer or getattr(self, 'word', None)
         data['char_position'] = self.char_position
         
-        if self.alternate_answers:
+        # Include alternates - support both old and new schema
+        alternates_json = self.alternate_answers or getattr(self, 'alternates', None)
+        if alternates_json:
+            import json
             try:
-                data['alternates'] = json.loads(self.alternate_answers)
+                data['alternates'] = json.loads(alternates_json) if isinstance(alternates_json, str) else alternates_json
             except (json.JSONDecodeError, TypeError):
                 data['alternates'] = []
         else:
