@@ -15,6 +15,7 @@
     <h3>Drill Complete! 🎉</h3>
     <p id="scoreDisplay"></p>
     <a href="/dashboard">Back to Dashboard</a>
+    <a href="javascript:void(0)" onclick="window.location='/take/' + quizId" style="margin-left:10px;">Retake</a>
   </div>
 </div>
 
@@ -361,6 +362,7 @@ function showResults(result, questionResults) {
     <p id="scoreDisplay"><strong>Score: ${result.correct}/${result.total} (${Math.round(result.correct/result.total*100)}%)</strong></p>
     <div id="questionReview"></div>
     <a href="/dashboard" style="display:inline-block;margin-top:20px;">Back to Dashboard</a>
+    <a href="javascript:void(0)" onclick="window.location='/take/${quizId}'" style="margin-left:10px;">Retake</a>
   `;
   
   const reviewContainer = document.getElementById('questionReview');

@@ -19,6 +19,7 @@
     <button id="addQuestionBtn">Add Question</button>
   </div>
   <button id="saveQuizBtn" onclick="window.location='/dashboard'">Done</button>
+  <button onclick="window.location='/take/' + quizId" style="margin-left:10px;">Run Drill</button>
 
   <!-- MCQ Editor -->
   <div id="mcqEditor" class="card" style="display:none;margin-top:20px">
@@ -554,16 +555,26 @@ document.getElementById('clozeNext').onclick = () => {
         span.style.background = 'yellow';
         clozeWordData[idx] = { word, pos: wordCharPos, alternates: [] };
 
-        // Add "alt" button
+        // Add "alt" button (hidden by default, shown on hover)
         const altBtn = document.createElement('span');
         altBtn.className = 'alt-btn';
         altBtn.innerText = 'alt';
-        altBtn.style.cssText = 'position:absolute; top:-20px; right:-5px; background:black; color:white; padding:2px 4px; font-size:10px; cursor:pointer; border-radius:3px; z-index:10;';
+        altBtn.style.cssText = 'position:absolute; top:-20px; right:-5px; background:black; color:white; padding:2px 4px; font-size:10px; cursor:pointer; border-radius:3px; z-index:10; display:none;';
         altBtn.onclick = (e) => {
           e.stopPropagation();
           showAltInput(idx, span, wrapper);
         };
         wrapper.appendChild(altBtn);
+        
+        // Show/hide alt button on hover
+        wrapper.onmouseenter = () => {
+          const btn = wrapper.querySelector('.alt-btn');
+          if (btn) btn.style.display = 'block';
+        };
+        wrapper.onmouseleave = () => {
+          const btn = wrapper.querySelector('.alt-btn');
+          if (btn) btn.style.display = 'none';
+        };
       } else {
         // Deselecting the word
         span.style.background = '';

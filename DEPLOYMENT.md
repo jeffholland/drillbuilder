@@ -499,7 +499,7 @@ sudo journalctl -u drillbuilder -f
 # Gunicorn logs
 sudo tail -f /opt/drillbuilder/logs/gunicorn-error.log
 sudo tail -f /opt/drillbuilder/logs/gunicorn-access.log
-
+q
 # Nginx logs
 sudo tail -f /var/log/nginx/drillbuilder-error.log
 sudo tail -f /var/log/nginx/drillbuilder-access.log
