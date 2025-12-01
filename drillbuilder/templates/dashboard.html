@@ -17,6 +17,8 @@
       <input type="checkbox" name="is_public" /> Make drill public (visible to all users)
     </label>
     <button>Create drill</button>
+    <button type="button" onclick="document.getElementById('csvUpload').click()" style="margin-left:10px;">Upload CSV</button>
+    <input type="file" id="csvUpload" accept=".csv" style="display:none;" onchange="handleCSVUpload(this)" />
   </form>
 
   <h3>Your Drills</h3>
@@ -330,6 +332,200 @@ async function downloadDrillCSV() {
   } catch (error) {
     alert('Failed to download CSV: ' + error.message);
   }
+}
+
+async function handleCSVUpload(fileInput) {
+  const file = fileInput.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const csvText = e.target.result;
+      const lines = csvText.split('\n').filter(line => line.trim());
+      
+      if (lines.length < 2) {
+        alert('CSV file is empty or invalid');
+        fileInput.value = '';
+        return;
+      }
+      
+      // Get drill title and language from user
+      const title = prompt('Enter drill title:');
+      if (!title) {
+        fileInput.value = '';
+        return;
+      }
+      
+      const language = prompt('Enter language code (e.g., en, es, fr):');
+      if (!language) {
+        fileInput.value = '';
+        return;
+      }
+      
+      // Create the drill first
+      const createResponse = await fetch('/quizzes/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
+        body: JSON.stringify({title, language, is_public: false})
+      });
+      
+      if (createResponse.status !== 201) {
+        alert('Failed to create drill');
+        fileInput.value = '';
+        return;
+      }
+      
+      const quiz = await createResponse.json();
+      const quizId = quiz.id;
+      
+      // Parse CSV (skip header row)
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        // Parse CSV line (handle quoted fields)
+        const fields = parseCSVLine(line);
+        if (fields.length < 4) continue;
+        
+        const [qType, qText, qImage, details] = fields;
+        
+        let payload = null;
+        
+        if (qType === 'Multiple Choice') {
+          // Parse options from details (format: "[CORRECT] text | text | ...")
+          const optionTexts = details.split(' | ').map(opt => opt.trim());
+          const options = optionTexts.map(opt => {
+            const isCorrect = opt.startsWith('[CORRECT]');
+            const text = opt.replace('[CORRECT] ', '').replace(/\s*\(img:.*?\)\s*$/, '');
+            return {text, is_correct: isCorrect, image_url: null};
+          });
+          
+          payload = {
+            type: 'multiple_choice',
+            prompt_text: qText,
+            prompt_image_url: qImage || null,
+            mcq_options: options
+          };
+          
+        } else if (qType === 'Cloze') {
+          // Parse blanks from details (format: "Blanks: word (alts: alt1, alt2) | word2 | ...")
+          const blanksText = details.replace('Blanks: ', '');
+          const blankParts = blanksText.split(' | ').map(b => b.trim());
+          
+          // Find blank positions in the text
+          const blanks = [];
+          let searchPos = 0;
+          
+          blankParts.forEach(blankInfo => {
+            const match = blankInfo.match(/^(.+?)(?:\s*\(alts:\s*(.+?)\))?$/);
+            if (!match) return;
+            
+            const word = match[1].trim();
+            const altsStr = match[2];
+            const alternates = altsStr ? altsStr.split(',').map(a => a.trim()) : [];
+            
+            // Find the word in the text
+            const pos = qText.indexOf(word, searchPos);
+            if (pos !== -1) {
+              blanks.push({
+                word: word,
+                char_position: pos,
+                alternates: alternates
+              });
+              searchPos = pos + word.length;
+            }
+          });
+          
+          payload = {
+            type: 'cloze',
+            prompt_text: qText,
+            prompt_image_url: qImage || null,
+            cloze_data: {
+              full_text: qText,
+              blanks: blanks,
+              word_bank: false
+            }
+          };
+          
+        } else if (qType === 'Word Match') {
+          // Parse pairs from details (format: "left → right | left2 → right2")
+          const pairTexts = details.split(' | ').map(p => p.trim());
+          const pairs = pairTexts.map(pairText => {
+            const parts = pairText.split('→').map(p => p.trim());
+            if (parts.length !== 2) return null;
+            
+            const left = parts[0].replace(/\s*\[img\]\s*$/, '').replace('(img)', '').trim();
+            const right = parts[1].replace(/\s*\[img\]\s*$/, '').replace('(img)', '').trim();
+            
+            return {
+              left_word: left || null,
+              right_word: right || null,
+              left_image_url: null,
+              right_image_url: null
+            };
+          }).filter(p => p !== null);
+          
+          payload = {
+            type: 'word_match',
+            prompt_text: qText || 'Match the following words:',
+            prompt_image_url: qImage || null,
+            word_pairs: pairs
+          };
+        }
+        
+        // Create the question
+        if (payload) {
+          await fetch(`/quizzes/${quizId}/questions`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
+            body: JSON.stringify(payload)
+          });
+        }
+      }
+      
+      alert(`Drill created successfully with ${lines.length - 1} questions!`);
+      fileInput.value = '';
+      window.location = '/quiz-editor?id=' + quizId;
+      
+    } catch (error) {
+      alert('Error parsing CSV: ' + error.message);
+      fileInput.value = '';
+    }
+  };
+  
+  reader.readAsText(file);
+}
+
+function parseCSVLine(line) {
+  const fields = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    const nextChar = line[i + 1];
+    
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        // Escaped quote
+        current += '"';
+        i++;
+      } else {
+        // Toggle quote state
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      // Field separator
+      fields.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  
+  fields.push(current);
+  return fields;
 }
 
 document.getElementById('logoutBtn').onclick = ()=>{ localStorage.removeItem('access_token'); window.location = '/' }

@@ -42,4 +42,4 @@ sudo -u drillbuilder /opt/drillbuilder/venv/bin/flask --app drillbuilder.app db 
 
 # Quick One-Liner for Simple Updates
 
-cd /opt/drillbuilder/app && sudo -u drillbuilder git pull && sudo systemctl restart drillbuilder && sudo systemctl status drillbuilder
+cd /opt/drillbuilder/app && git pull && sudo systemctl restart drillbuilder && sudo systemctl status drillbuilder
