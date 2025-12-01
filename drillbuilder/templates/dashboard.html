@@ -28,10 +28,11 @@
 
 <div id="shareModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;">
   <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:30px; border-radius:8px; width:500px; max-width:90%;">
-    <h3>Share Drill</h3>
+    <h3 id="shareModalTitle">Share Drill</h3>
     <p>Copy this link to share the drill:</p>
     <input type="text" id="shareLink" readonly style="width:100%; padding:8px; margin:10px 0; border:1px solid #ddd; border-radius:4px;" />
     <button onclick="copyShareLink()" style="margin-right:10px;">Copy Link</button>
+    <button onclick="downloadDrillCSV()" style="margin-right:10px;">Download CSV</button>
     <button onclick="closeShareModal()">Close</button>
   </div>
 </div>
@@ -253,14 +254,19 @@ document.getElementById('savedQuizList').addEventListener('click', async (e)=>{
   }
 })
 
+let currentShareQuizId = null;
+
 function openShareModal(quizId, title) {
+  currentShareQuizId = quizId;
   const url = `${window.location.origin}/take/${quizId}`;
   document.getElementById('shareLink').value = url;
+  document.getElementById('shareModalTitle').innerText = `Share: ${title}`;
   document.getElementById('shareModal').style.display = 'block';
 }
 
 function closeShareModal() {
   document.getElementById('shareModal').style.display = 'none';
+  currentShareQuizId = null;
 }
 
 function copyShareLink() {
@@ -268,6 +274,62 @@ function copyShareLink() {
   input.select();
   document.execCommand('copy');
   alert('Link copied to clipboard!');
+}
+
+async function downloadDrillCSV() {
+  if (!currentShareQuizId) return;
+  
+  try {
+    const r = await fetch(`/quizzes/${currentShareQuizId}`, {headers: {'Authorization': 'Bearer ' + token}});
+    const quiz = await r.json();
+    
+    // Build CSV content
+    let csv = 'Question Type,Question Text,Question Image,Details\n';
+    
+    quiz.questions.forEach((q, idx) => {
+      const qNum = idx + 1;
+      const qType = q.type;
+      const qText = (q.prompt_text || '').replace(/"/g, '""'); // Escape quotes
+      const qImage = q.prompt_image_url || '';
+      
+      if (qType === 'multiple_choice') {
+        const options = q.options.map(opt => 
+          `${opt.is_correct ? '[CORRECT] ' : ''}${opt.text}${opt.image_url ? ' (img: ' + opt.image_url + ')' : ''}`
+        ).join(' | ');
+        csv += `"Multiple Choice","${qText}","${qImage}","${options}"\n`;
+        
+      } else if (qType === 'cloze') {
+        const blanks = q.cloze_question?.cloze_words || [];
+        const blankInfo = blanks.map(b => {
+          const alts = b.alternates && b.alternates.length > 0 ? ` (alts: ${b.alternates.join(', ')})` : '';
+          return b.word + alts;
+        }).join(' | ');
+        const fullText = (q.cloze_question?.full_text || q.prompt_text || '').replace(/"/g, '""');
+        csv += `"Cloze","${fullText}","${qImage}","Blanks: ${blankInfo}"\n`;
+        
+      } else if (qType === 'word_match') {
+        const pairs = q.word_pairs || [];
+        const pairInfo = pairs.map(p => 
+          `${p.left_word || '(img)'}${p.left_image_url ? ' [img]' : ''} → ${p.right_word || '(img)'}${p.right_image_url ? ' [img]' : ''}`
+        ).join(' | ');
+        csv += `"Word Match","Match pairs","${qImage}","${pairInfo}"\n`;
+      }
+    });
+    
+    // Create download
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${quiz.title.replace(/[^a-z0-9]/gi, '_')}_drill.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+  } catch (error) {
+    alert('Failed to download CSV: ' + error.message);
+  }
 }
 
 document.getElementById('logoutBtn').onclick = ()=>{ localStorage.removeItem('access_token'); window.location = '/' }
