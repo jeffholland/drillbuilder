@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card">
+  <h2>Browse Public Drills</h2>
+  <div id="publicQuizList">Loading...</div>
+</div>
+
+<div id="shareModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;">
+  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:30px; border-radius:8px; width:500px; max-width:90%;">
+    <h3>Share Drill</h3>
+    <p>Copy this link to share the drill:</p>
+    <input type="text" id="shareLink" readonly style="width:100%; padding:8px; margin:10px 0; border:1px solid #ddd; border-radius:4px;" />
+    <button onclick="copyShareLink()" style="margin-right:10px;">Copy Link</button>
+    <button onclick="closeShareModal()">Close</button>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('access_token');
+
+async function loadPublicQuizzes() {
+  const r = await fetch('/quizzes/public', {headers: token ? {'Authorization': 'Bearer ' + token} : {}});
+  const quizzes = await r.json();
+  
+  const container = document.getElementById('publicQuizList');
+  if (!Array.isArray(quizzes) || quizzes.length === 0) {
+    container.innerHTML = '<p>No public drills available yet.</p>';
+    return;
+  }
+  
+  container.innerHTML = '';
+  quizzes.forEach(quiz => {
+    const div = document.createElement('div');
+    div.style.margin = '15px 0';
+    div.style.padding = '15px';
+    div.style.border = '1px solid #e6eefb';
+    div.style.borderRadius = '8px';
+    
+    let content = `<h3>${quiz.title}</h3>`;
+    if (quiz.description) content += `<p>${quiz.description}</p>`;
+    const langDisplay = quiz.language_name || quiz.language || 'N/A';
+    content += `<p style="color:#666; font-size:0.9em;">Language: ${langDisplay} | By ${quiz.creator_username || 'Unknown'}</p>`;
+    
+    const actions = document.createElement('div');
+    actions.style.marginTop = '10px';
+    
+    const takeBtn = document.createElement('a');
+    takeBtn.href = `/take/${quiz.id}`;
+    takeBtn.innerText = 'Take Drill';
+    takeBtn.style.marginRight = '10px';
+    actions.appendChild(takeBtn);
+    
+    if (token) {
+      const saveBtn = document.createElement('button');
+      saveBtn.innerText = quiz.is_saved ? 'Saved ✓' : 'Save to Collection';
+      saveBtn.disabled = quiz.is_saved;
+      saveBtn.onclick = () => saveQuiz(quiz.id, saveBtn);
+      saveBtn.style.marginRight = '10px';
+      actions.appendChild(saveBtn);
+    }
+    
+    const shareBtn = document.createElement('button');
+    shareBtn.innerText = 'Share';
+    shareBtn.onclick = () => openShareModal(quiz.id, quiz.title);
+    actions.appendChild(shareBtn);
+    
+    div.innerHTML = content;
+    div.appendChild(actions);
+    container.appendChild(div);
+  });
+}
+
+async function saveQuiz(quizId, button) {
+  if (!token) {
+    alert('Please log in to save drills');
+    return;
+  }
+  
+  const r = await fetch(`/quizzes/${quizId}/save`, {
+    method: 'POST',
+    headers: {'Authorization': 'Bearer ' + token}
+  });
+  
+  if (r.status === 201) {
+    button.innerText = 'Saved ✓';
+    button.disabled = true;
+  } else {
+    const err = await r.json();
+    alert('Error saving drill: ' + (err.msg || JSON.stringify(err)));
+  }
+}
+
+function openShareModal(quizId, title) {
+  const url = `${window.location.origin}/take/${quizId}`;
+  document.getElementById('shareLink').value = url;
+  document.getElementById('shareModal').style.display = 'block';
+}
+
+function closeShareModal() {
+  document.getElementById('shareModal').style.display = 'none';
+}
+
+function copyShareLink() {
+  const input = document.getElementById('shareLink');
+  input.select();
+  document.execCommand('copy');
+  alert('Link copied to clipboard!');
+}
+
+loadPublicQuizzes();
+</script>
+
+{% endblock %}

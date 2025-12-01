@@ -1,0 +1,279 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card">
+  <h2>Your Dashboard</h2>
+  <div>
+    <button id="logoutBtn">Log out</button>
+  </div>
+
+  <h3>Create new drill</h3>
+  <form id="newQuizForm">
+    <input name="title" placeholder="Title" required />
+    <select name="language" id="languageSelect" required style="padding:8px; margin:5px 0;">
+      <option value="">-- Select Language --</option>
+    </select>
+    <label style="display:block; margin:10px 0;">
+      <input type="checkbox" name="is_public" /> Make drill public (visible to all users)
+    </label>
+    <button>Create drill</button>
+  </form>
+
+  <h3>Your Drills</h3>
+  <div id="quizList">Loading…</div>
+
+  <h3 style="margin-top:40px;">Saved Drills</h3>
+  <div id="savedQuizList">Loading…</div>
+</div>
+
+<div id="shareModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;">
+  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:30px; border-radius:8px; width:500px; max-width:90%;">
+    <h3>Share Drill</h3>
+    <p>Copy this link to share the drill:</p>
+    <input type="text" id="shareLink" readonly style="width:100%; padding:8px; margin:10px 0; border:1px solid #ddd; border-radius:4px;" />
+    <button onclick="copyShareLink()" style="margin-right:10px;">Copy Link</button>
+    <button onclick="closeShareModal()">Close</button>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('access_token')
+if (!token) {
+  // redirect to register/login page if not logged in
+  window.location = '/register'
+}
+
+async function loadLanguages() {
+  const r = await fetch('/quizzes/languages')
+  const languages = await r.json()
+  const select = document.getElementById('languageSelect')
+  
+  // Get user's language history from localStorage
+  const langHistory = JSON.parse(localStorage.getItem('languageHistory') || '[]')
+  
+  // Split languages into used and unused
+  const usedLangs = []
+  const unusedLangs = []
+  
+  languages.forEach(lang => {
+    if (langHistory.includes(lang.code)) {
+      usedLangs.push(lang)
+    } else {
+      unusedLangs.push(lang)
+    }
+  })
+  
+  // Sort used by most recent (reverse order in history array)
+  usedLangs.sort((a, b) => langHistory.indexOf(b.code) - langHistory.indexOf(a.code))
+  
+  // Sort unused alphabetically
+  unusedLangs.sort((a, b) => a.name.localeCompare(b.name))
+  
+  // Add used languages first
+  if (usedLangs.length > 0) {
+    const recentGroup = document.createElement('optgroup')
+    recentGroup.label = 'Recently Used'
+    usedLangs.forEach(lang => {
+      const option = document.createElement('option')
+      option.value = lang.code
+      option.textContent = lang.name
+      recentGroup.appendChild(option)
+    })
+    select.appendChild(recentGroup)
+  }
+  
+  // Add other languages
+  if (unusedLangs.length > 0) {
+    const otherGroup = document.createElement('optgroup')
+    otherGroup.label = 'Other Languages'
+    unusedLangs.forEach(lang => {
+      const option = document.createElement('option')
+      option.value = lang.code
+      option.textContent = lang.name
+      otherGroup.appendChild(option)
+    })
+    select.appendChild(otherGroup)
+  }
+  
+  // Select most recent language as default
+  if (langHistory.length > 0) {
+    select.value = langHistory[langHistory.length - 1]
+  }
+}
+
+async function loadQuizzes(){
+  const r = await fetch('/quizzes/', {headers: {'Authorization': 'Bearer ' + token}})
+  const arr = await r.json()
+  
+  // Fetch progress data
+  const r2 = await fetch('/users/me/progress', {headers: {'Authorization': 'Bearer ' + token}})
+  const progress = await r2.json()
+  const progressMap = {}
+  if (Array.isArray(progress)) {
+    progress.forEach(p => {
+      progressMap[p.quiz_id] = p
+    })
+  }
+  
+  const node = document.getElementById('quizList')
+  if (!Array.isArray(arr)) { node.innerText = 'Error loading quizzes'; return }
+  
+  // Filter to only show quizzes created by the user
+  const myQuizzes = arr.filter(q => q.is_mine !== false)
+  
+  if (!myQuizzes.length) { 
+    node.innerText = 'You have not created any drills yet' 
+  } else {
+    const ul = document.createElement('div')
+    myQuizzes.forEach(q => {
+      const el = document.createElement('div')
+      el.style.margin = '10px 0'
+      const prog = progressMap[q.id]
+      const scoreText = prog ? ` | <span style="color:#10b981">Best: ${Math.round(prog.accuracy * 100)}% (${prog.attempts} attempts)</span>` : ''
+      const publicBadge = q.is_public ? ' <span style="background:#10b981;color:white;padding:2px 6px;border-radius:3px;font-size:0.8em">PUBLIC</span>' : ''
+      const langDisplay = q.language_name || q.language || 'n/a'
+      const clearBtn = prog ? ` | <button data-id="${q.id}" class="clear-results">Clear Results</button>` : ''
+      el.innerHTML = `<strong>${q.title}</strong>${publicBadge} (${langDisplay})${scoreText} — <a href="/quiz-editor?id=${q.id}">Edit Questions</a> | <button data-id="${q.id}" class="rename">Rename</button> <button data-id="${q.id}" class="delete">Delete</button> | <a href="/take/${q.id}">Take</a> | <button data-id="${q.id}" data-title="${q.title}" class="share">Share</button>${clearBtn}`
+      ul.appendChild(el)
+    })
+    node.innerHTML = ''
+    node.appendChild(ul)
+  }
+  
+  // Load saved quizzes
+  const r3 = await fetch('/quizzes/saved', {headers: {'Authorization': 'Bearer ' + token}})
+  const savedArr = await r3.json()
+  const savedNode = document.getElementById('savedQuizList')
+  
+  if (!Array.isArray(savedArr) || savedArr.length === 0) {
+    savedNode.innerText = 'You have not saved any drills yet'
+  } else {
+    const ul = document.createElement('div')
+    savedArr.forEach(q => {
+      const el = document.createElement('div')
+      el.style.margin = '10px 0'
+      const prog = progressMap[q.id]
+      const scoreText = prog ? ` | <span style="color:#10b981">Best: ${Math.round(prog.accuracy * 100)}% (${prog.attempts} attempts)</span>` : ''
+      const langDisplay = q.language_name || q.language || 'n/a'
+      const clearBtn = prog ? ` | <button data-id="${q.id}" class="clear-results">Clear Results</button>` : ''
+      el.innerHTML = `<strong>${q.title}</strong> (${langDisplay})${scoreText} — <a href="/take/${q.id}">Take</a> | <button data-id="${q.id}" data-title="${q.title}" class="share">Share</button> | <button data-id="${q.id}" class="unsave">Remove</button>${clearBtn}`
+      ul.appendChild(el)
+    })
+    savedNode.innerHTML = ''
+    savedNode.appendChild(ul)
+  }
+}
+
+document.getElementById('newQuizForm').onsubmit = async (e) => {
+  e.preventDefault()
+  const title = e.target.title.value
+  const language = e.target.language.value
+  const is_public = e.target.is_public.checked
+  
+  // Save language to history
+  const langHistory = JSON.parse(localStorage.getItem('languageHistory') || '[]')
+  // Remove if already exists and add to end (most recent)
+  const filtered = langHistory.filter(code => code !== language)
+  filtered.push(language)
+  // Keep only last 10 languages
+  const updated = filtered.slice(-10)
+  localStorage.setItem('languageHistory', JSON.stringify(updated))
+  
+  const r = await fetch('/quizzes/', {method:'POST', headers:{'Content-Type':'application/json', 'Authorization':'Bearer ' + token}, body: JSON.stringify({title, language, is_public})})
+  const js = await r.json()
+  if (r.status === 201) { 
+    window.location = '/quiz-editor?id=' + js.id;
+  } else { 
+    alert('Create failed: ' + JSON.stringify(js)) 
+  }
+}
+
+document.getElementById('quizList').addEventListener('click', async (e)=>{
+  const el = e.target
+  if (el.classList.contains('delete')){
+    const id = el.dataset.id
+    if (!confirm('Delete drill?')) return
+    const r = await fetch(`/quizzes/${id}`, {method:'DELETE', headers:{'Authorization':'Bearer ' + token}})
+    if (r.status === 200) { 
+      loadQuizzes(); 
+    } else {
+      const err = await r.json();
+      alert('Delete failed: ' + (err.msg || JSON.stringify(err)));
+    }
+  }
+  if (el.classList.contains('rename')){
+    const id = el.dataset.id
+    const newTitle = prompt('New title?')
+    if (!newTitle) return
+    const r = await fetch(`/quizzes/${id}`, {method:'PUT', headers:{'Content-Type':'application/json','Authorization':'Bearer ' + token}, body: JSON.stringify({title: newTitle})})
+    if (r.status === 200) loadQuizzes(); else alert('Rename failed')
+  }
+  if (el.classList.contains('share')){
+    openShareModal(el.dataset.id, el.dataset.title)
+  }
+  if (el.classList.contains('clear-results')){
+    const id = el.dataset.id
+    if (!confirm('Clear all your attempt history for this drill? This cannot be undone.')) return
+    const r = await fetch(`/quizzes/${id}/clear-results`, {method:'DELETE', headers:{'Authorization':'Bearer ' + token}})
+    if (r.status === 200) { 
+      alert('Results cleared successfully')
+      loadQuizzes(); 
+    } else { 
+      alert('Failed to clear results')
+    }
+  }
+})
+
+document.getElementById('savedQuizList').addEventListener('click', async (e)=>{
+  const el = e.target
+  if (el.classList.contains('unsave')){
+    const id = el.dataset.id
+    if (!confirm('Remove this drill from your collection?')) return
+    const r = await fetch(`/quizzes/${id}/save`, {method:'DELETE', headers:{'Authorization':'Bearer ' + token}})
+    if (r.status === 200) { 
+      loadQuizzes(); 
+    } else {
+      const err = await r.json();
+      alert('Remove failed: ' + (err.msg || JSON.stringify(err)));
+    }
+  }
+  if (el.classList.contains('share')){
+    openShareModal(el.dataset.id, el.dataset.title)
+  }
+  if (el.classList.contains('clear-results')){
+    const id = el.dataset.id
+    if (!confirm('Clear all your attempt history for this drill? This cannot be undone.')) return
+    const r = await fetch(`/quizzes/${id}/clear-results`, {method:'DELETE', headers:{'Authorization':'Bearer ' + token}})
+    if (r.status === 200) { 
+      alert('Results cleared successfully')
+      loadQuizzes(); 
+    } else { 
+      alert('Failed to clear results')
+    }
+  }
+})
+
+function openShareModal(quizId, title) {
+  const url = `${window.location.origin}/take/${quizId}`;
+  document.getElementById('shareLink').value = url;
+  document.getElementById('shareModal').style.display = 'block';
+}
+
+function closeShareModal() {
+  document.getElementById('shareModal').style.display = 'none';
+}
+
+function copyShareLink() {
+  const input = document.getElementById('shareLink');
+  input.select();
+  document.execCommand('copy');
+  alert('Link copied to clipboard!');
+}
+
+document.getElementById('logoutBtn').onclick = ()=>{ localStorage.removeItem('access_token'); window.location = '/' }
+
+loadLanguages()
+loadQuizzes()
+</script>
+
+{% endblock %}

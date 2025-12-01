@@ -1,0 +1,35 @@
+-----------------------------------------------------------------
+
+To-do
+
+Make sure that Cloze words don't take punctuation along with them
+- and are not case sensitive
+
+Create quiz
+- "Previously used languages" come up first in the language selector.
+- Order language selector options by most to least frequently used first (then alphabetical).
+- Edit existing questions
+
+Dashboard
+- Download quiz as json or csv file
+
+Other
+- For each wrong answer, option to send a challenge to quiz creator "my answer should have been accepted" etc. Creators should be able to turn this off in settings (which we also need a settings page)
+- Import wiktionary data and suggest sentences in target language
+- review gives options to report issues to the quiz creator, or make edits if the logged-in user is the quiz creator.
+
+
+------------------------------------------------------------------------------
+
+Completed
+
+Cloze
+- Add word bank
+- Add cancel button
+- Accept multiple possibilities for answers
+
+Multiple choice
+- Randomize order of choices
+- Allow deletion of ALL choices once more than 2 exist
+
+Interface for reviewing mistakes after a quiz

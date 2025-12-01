@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>DrillBuilder</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>DrillBuilder</h1>
+      <nav>
+        <span>
+          <a href="/">Home</a> | <a href="/browse">Browse Drills</a>
+        </span>
+        <span style="float:right;display:none;" id="navAuthd">
+          <a href="/dashboard">Dashboard</a> | <a href="#" id="navLogout">Logout</a>
+        </span>
+        <span style="float:right;" id="navAuth">
+          <a href="/register" id="navRegister">Register</a> | <a href="/login" id="navLogin">Login</a>
+        </span>
+      </nav>
+    </header>
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+    <script>
+      // Check auth status and update nav - run immediately
+      (function() {
+        const token = localStorage.getItem('access_token');
+        const navAuth = document.getElementById('navAuth');
+        const navAuthd = document.getElementById('navAuthd');
+        
+        if (token) {
+          navAuth.style.display = 'none';
+          navAuthd.style.display = 'inline';
+        } else {
+          navAuth.style.display = 'inline';
+          navAuthd.style.display = 'none';
+        }
+        
+        const logoutBtn = document.getElementById('navLogout');
+        if (logoutBtn) {
+          logoutBtn.onclick = function(e) {
+            e.preventDefault();
+            localStorage.removeItem('access_token');
+            window.location.href = '/';
+          };
+        }
+      })();
+    </script>
+    <script src="/static/js/app.js"></script>
+  </body>
+</html>

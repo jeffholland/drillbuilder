@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card">
+  <h2>Create an Account</h2>
+  <form id="registerForm">
+    <label>Username: <input name="username" required /></label><br/><br/>
+    <label>Email (optional): <input name="email" /></label><br/><br/>
+    <label>Password: <input name="password" type="password" required/></label><br/><br/>
+    <button type="submit">Register</button>
+  </form>
+  <div id="registerResult"></div>
+  <p style="margin-top:20px;">Already have an account? <a href="/login">Log in here</a></p>
+</div>
+
+<script>
+document.getElementById('registerForm').onsubmit = async (e) => {
+  e.preventDefault()
+  const username = e.target.username.value
+  const email = e.target.email.value
+  const password = e.target.password.value
+  const r = await fetch('/auth/register', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username, email, password})})
+  const js = await r.json()
+  if (r.status === 201) {
+    // auto-login after registration
+    const r2 = await fetch('/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username, password})})
+    const j2 = await r2.json()
+    if (j2.access_token) {
+      localStorage.setItem('access_token', j2.access_token)
+      window.location = '/dashboard'
+    }
+  } else {
+    document.getElementById('registerResult').innerText = JSON.stringify(js)
+  }
+}
+</script>
+
+{% endblock %}

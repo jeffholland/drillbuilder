@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Create Drill</h2>
+<div id="authState">
+  <div id="loggedOut">
+    <h3>Log in to create drills</h3>
+    <form id="loginForm">
+      <label>Username or Email: <input name="username" /></label><br/>
+      <label>Password: <input name="password" type="password"/></label><br/>
+      <button type="submit">Login</button>
+    </form>
+    <div>Or <a href="#" id="showCreateForm">create anonymous/public drill (login recommended)</a></div>
+  </div>
+</div>
+
+<form id="createForm" style="display:none">
+  <label>Title: <input name="title" /></label><br/>
+  <label>Language: <input name="language" /></label><br/>
+  <label>Description:<br/><textarea name="description"></textarea></label><br/>
+  <button type="submit">Create</button>
+</form>
+
+<div id="output"></div>
+
+<script>
+document.getElementById('createForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const body = {title: e.target.title.value, language: e.target.language.value, description: e.target.description.value, is_public: true};
+
+  // Include auth header if token is stored
+  const token = localStorage.getItem('access_token');
+  const headers = {'Content-Type': 'application/json'};
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+
+  const r = await fetch('/quizzes/', {method: 'POST', headers, body: JSON.stringify(body)});
+  const js = await r.json();
+  if (r.status === 401) {
+    document.getElementById('output').innerText = 'Unauthorized: please login first.' + '\n' + JSON.stringify(js, null, 2);
+  } else {
+    document.getElementById('output').innerText = JSON.stringify(js, null, 2);
+  }
+}
+
+// Login form handler
+document.getElementById('loginForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const username = e.target.username.value;
+  const password = e.target.password.value;
+  const r = await fetch('/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username, password})});
+  const js = await r.json();
+  if (r.status === 200 && js.access_token) {
+    localStorage.setItem('access_token', js.access_token);
+    window.location = '/dashboard';
+  } else {
+    document.getElementById('output').innerText = 'Login failed: ' + JSON.stringify(js);
+  }
+}
+
+document.getElementById('showCreateForm').addEventListener('click', (e) => {
+  e.preventDefault();
+  document.getElementById('createForm').style.display = 'block';
+  document.getElementById('authState').style.display = 'none';
+});
+</script>
+
+{% endblock %}

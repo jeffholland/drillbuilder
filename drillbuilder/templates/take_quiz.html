@@ -1,0 +1,482 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card">
+  <h2 id="quizTitle">Take Drill</h2>
+  <div id="quizContent">
+    <p>Loading drill...</p>
+  </div>
+  
+  <div id="quizQuestions" style="display:none">
+    <!-- Questions will be rendered here -->
+  </div>
+  
+  <div id="quizResults" style="display:none" class="card">
+    <h3>Drill Complete! 🎉</h3>
+    <p id="scoreDisplay"></p>
+    <a href="/dashboard">Back to Dashboard</a>
+  </div>
+</div>
+
+<style>
+.question-card { margin: 20px 0; padding: 15px; border: 1px solid #e6eefb; border-radius: 8px; background: #f8fafc; }
+.mcq-option { margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; }
+.mcq-option:hover { background: #e6eefb; }
+.mcq-option.selected { background: #2563eb; color: white; border-color: #2563eb; }
+.cloze-container { line-height: 2.5em; font-size: 16px; }
+.cloze-blank { display: inline-block; margin: 0 5px; }
+.cloze-blank input { width: 120px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+.word-match-container { display: flex; gap: 40px; margin: 20px 0; }
+.word-match-column { flex: 1; }
+.word-match-item { padding: 10px; margin: 8px 0; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; background: white; transition: all 0.2s; }
+.word-match-item:hover { background: #f0f0f0; }
+.word-match-item.selected { background: #2563eb; color: white; border-color: #2563eb; }
+.word-match-item.matched { background: #10b981; color: white; opacity: 0.7; cursor: not-allowed; }
+.submit-btn { margin-top: 30px; padding: 12px 24px; font-size: 16px; }
+</style>
+
+<script>
+const quizId = {{ quiz_id }};
+const token = localStorage.getItem('access_token');
+if (!token) { 
+  alert('Please log in to take drills');
+  window.location = '/register'; 
+}
+
+let quiz = null;
+let attempt = null;
+let answers = {};
+
+async function loadQuiz() {
+  const r = await fetch(`/quizzes/${quizId}`, {headers: {'Authorization': 'Bearer ' + token}});
+  quiz = await r.json();
+  document.getElementById('quizTitle').innerText = quiz.title || 'Take Drill';
+  
+  if (!quiz.questions || quiz.questions.length === 0) {
+    document.getElementById('quizContent').innerHTML = '<p>This drill has no questions yet.</p>';
+    return;
+  }
+  
+  // Start attempt
+  const r2 = await fetch(`/attempts/${quizId}/start`, {
+    method: 'POST',
+    headers: {'Authorization': 'Bearer ' + token}
+  });
+  attempt = await r2.json();
+  
+  document.getElementById('quizContent').style.display = 'none';
+  document.getElementById('quizQuestions').style.display = 'block';
+  
+  renderAllQuestions();
+}
+
+function renderAllQuestions() {
+  const container = document.getElementById('quizQuestions');
+  container.innerHTML = '<h3>Answer all questions below, then submit:</h3>';
+  
+  quiz.questions.forEach((q, idx) => {
+    const div = document.createElement('div');
+    div.className = 'question-card';
+    div.innerHTML = `<strong>Question ${idx + 1}:</strong><br/>`;
+    
+    if (q.type === 'multiple_choice') {
+      div.innerHTML += `<p>${q.prompt_text}</p>`;
+      if (q.prompt_image_url) {
+        div.innerHTML += `<img src="${q.prompt_image_url}" alt="Question image" style="max-width:200px;max-height:200px;margin:10px 0;border-radius:4px" />`;
+      }
+      // Randomize the order of options
+      const shuffledOptions = [...q.options].sort(() => Math.random() - 0.5);
+      shuffledOptions.forEach((opt, optIdx) => {
+        const optDiv = document.createElement('div');
+        optDiv.className = 'mcq-option';
+        optDiv.dataset.questionId = q.id;
+        optDiv.dataset.optionId = opt.id;
+        optDiv.innerText = opt.text;
+        if (opt.image_url) {
+          const img = document.createElement('img');
+          img.src = opt.image_url;
+          img.alt = 'Option image';
+          img.style = 'max-width:100px;max-height:100px;margin-left:10px;vertical-align:middle;border-radius:4px';
+          optDiv.appendChild(img);
+        }
+        optDiv.onclick = () => toggleMCQOption(q.id, opt.id, optDiv);
+        div.appendChild(optDiv);
+      });
+    } else if (q.type === 'cloze') {
+      div.innerHTML += `<p>Fill in the blanks:</p>`;
+      if (q.prompt_image_url) {
+        div.innerHTML += `<img src="${q.prompt_image_url}" alt="Question image" style="max-width:200px;max-height:200px;margin:10px 0;border-radius:4px" />`;
+      }
+      const clozeDiv = document.createElement('div');
+      clozeDiv.className = 'cloze-container';
+      clozeDiv.innerHTML = renderClozeQuestion(q);
+      div.appendChild(clozeDiv);
+    } else if (q.type === 'word_match') {
+      div.innerHTML += `<p>${q.prompt_text}</p>`;
+      if (q.prompt_image_url) {
+        div.innerHTML += `<img src="${q.prompt_image_url}" alt="Question image" style="max-width:200px;max-height:200px;margin:10px 0;border-radius:4px" />`;
+      }
+      div.innerHTML += `<p><em>Click words from each column to match them.</em></p>`;
+      const wmDiv = document.createElement('div');
+      wmDiv.innerHTML = renderWordMatchQuestion(q);
+      div.appendChild(wmDiv);
+    } else {
+      div.innerHTML += `<p>${q.prompt_text}</p><input type="text" data-question-id="${q.id}" placeholder="Your answer" style="width:100%;padding:8px" />`;
+    }
+    
+    container.appendChild(div);
+  });
+  
+  const submitBtn = document.createElement('button');
+  submitBtn.innerText = 'Submit Drill';
+  submitBtn.className = 'submit-btn';
+  submitBtn.onclick = submitQuiz;
+  container.appendChild(submitBtn);
+}
+
+function toggleMCQOption(questionId, optionId, element) {
+  element.classList.toggle('selected');
+  if (!answers[questionId]) answers[questionId] = [];
+  
+  const idx = answers[questionId].indexOf(optionId);
+  if (idx > -1) {
+    answers[questionId].splice(idx, 1);
+  } else {
+    answers[questionId].push(optionId);
+  }
+}
+
+function renderClozeQuestion(q) {
+  // Build text with blanks inserted at correct positions
+  if (!q.cloze_question || !q.cloze_question.cloze_words || q.cloze_question.cloze_words.length === 0) {
+    return `<p>${q.prompt_text}</p>`;
+  }
+  
+  const fullText = q.cloze_question.full_text;
+  const words = q.cloze_question.cloze_words.sort((a, b) => a.char_position - b.char_position);
+  console.log(words)
+  
+  // Build HTML by replacing each word with a blank input
+  let html = '<div>';
+  let currentPos = 0;
+  
+  words.forEach((w, idx) => {
+    // Add text before this blank
+    const textBefore = fullText.substring(currentPos, w.char_position);
+    // console.log(`Cloze word ${idx}: "${w.word}" at position ${w.char_position}`);
+    // console.log(`Adding text before blank ${idx} at position ${w.char_position}: "${textBefore}"`);
+    html += textBefore;
+    
+    // Add blank input (inline, no extra spacing)
+    html += `<input type="text" data-question-id="${q.id}" data-blank-idx="${idx}" placeholder="___" style="width:120px; padding:4px 8px; border:1px solid #ddd; border-radius:4px; font-size:14px; display:inline;" />`;
+    
+    // Move position past the word that should be blanked
+    currentPos = w.char_position + w.word.length;
+    // console.log(`Moving currentPos to ${currentPos} after blank ${idx}`);
+  });
+  
+  // Add remaining text after last blank
+  html += fullText.substring(currentPos);
+  html += '</div>';
+
+  console.log('Cloze HTML:', html);
+  
+  // Add word bank if enabled
+  if (q.cloze_question.word_bank) {
+    const allWords = words.map(w => w.word);
+    const shuffled = allWords.sort(() => Math.random() - 0.5);
+    html += '<div style="margin-top:20px; padding:15px; background:#f0f0f0; border-radius:5px;">';
+    html += '<strong>Word Bank:</strong><br/>';
+    html += '<div style="margin-top:10px;">';
+    shuffled.forEach(word => {
+      html += `<span style="display:inline-block; margin:5px; padding:5px 10px; background:white; border:1px solid #ccc; border-radius:3px;">${word}</span>`;
+    });
+    html += '</div></div>';
+  }
+  
+  return html;
+}
+
+function renderWordMatchQuestion(q) {
+  if (!q.word_pairs || q.word_pairs.length === 0) {
+    return `<p>No word pairs available.</p>`;
+  }
+  
+  // Shuffle right words to make it challenging
+  const leftWords = q.word_pairs.map((p, i) => ({word: p.left_word, idx: i}));
+  const rightWords = q.word_pairs.map((p, i) => ({word: p.right_word, idx: i})).sort(() => Math.random() - 0.5);
+  
+  let html = `<div class="word-match-container">`;
+  html += `<div class="word-match-column" id="wm-left-${q.id}">`;
+  leftWords.forEach((item) => {
+    const pair = q.word_pairs[item.idx];
+    html += `<div class="word-match-item" data-question-id="${q.id}" data-side="left" data-idx="${item.idx}" onclick="selectWord(this, '${q.id}')">`;
+    html += item.word;
+    if (pair.left_image_url) {
+      html += `<br/><img src="${pair.left_image_url}" alt="Left image" style="max-width:80px;max-height:80px;margin-top:5px;border-radius:3px" />`;
+    }
+    html += `</div>`;
+  });
+  html += `</div>`;
+  html += `<div class="word-match-column" id="wm-right-${q.id}">`;
+  rightWords.forEach((item) => {
+    const pair = q.word_pairs[item.idx];
+    html += `<div class="word-match-item" data-question-id="${q.id}" data-side="right" data-idx="${item.idx}" onclick="selectWord(this, '${q.id}')">`;
+    html += item.word;
+    if (pair.right_image_url) {
+      html += `<br/><img src="${pair.right_image_url}" alt="Right image" style="max-width:80px;max-height:80px;margin-top:5px;border-radius:3px" />`;
+    }
+    html += `</div>`;
+  });
+  html += `</div></div>`;
+  return html;
+}
+
+let selectedWordMatch = {};
+function selectWord(element, questionId) {
+  if (element.classList.contains('matched')) return;
+  
+  if (!selectedWordMatch[questionId]) {
+    selectedWordMatch[questionId] = element;
+    element.classList.add('selected');
+  } else {
+    const prev = selectedWordMatch[questionId];
+    
+    // Check if pairing different sides
+    if (prev.dataset.side !== element.dataset.side) {
+      // Valid pair
+      prev.classList.remove('selected');
+      prev.classList.add('matched');
+      element.classList.add('matched');
+      
+      // Store the match
+      if (!answers[questionId]) answers[questionId] = [];
+      answers[questionId].push({
+        left: prev.dataset.side === 'left' ? prev.dataset.idx : element.dataset.idx,
+        right: prev.dataset.side === 'right' ? prev.dataset.idx : element.dataset.idx
+      });
+      
+      selectedWordMatch[questionId] = null;
+    } else {
+      // Same side, deselect previous and select new
+      prev.classList.remove('selected');
+      selectedWordMatch[questionId] = element;
+      element.classList.add('selected');
+    }
+  }
+}
+
+async function submitQuiz() {
+  // Collect all answers
+  const responses = {};
+  
+  // Collect cloze answers
+  document.querySelectorAll('input[data-blank-idx]').forEach(input => {
+    const qid = input.dataset.questionId;
+    const blankIdx = input.dataset.blankIdx;
+    if (!responses[qid]) responses[qid] = {};
+    responses[qid][blankIdx] = input.value;
+  });
+  
+  // Merge MCQ and word match answers
+  Object.assign(responses, answers);
+  
+  // Submit each question and collect results
+  let correct = 0;
+  let total = quiz.questions.length;
+  const questionResults = [];
+  
+  for (const q of quiz.questions) {
+    const response = responses[q.id];
+    if (!response) {
+      questionResults.push({ question: q, correct: false, userAnswer: null, correctAnswer: null });
+      continue;
+    }
+    
+    const r = await fetch(`/attempts/${attempt.attempt_id}/submit-question`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
+      body: JSON.stringify({ question_id: q.id, response: response })
+    });
+    const result = await r.json();
+    if (result.correct) correct++;
+    
+    questionResults.push({ 
+      question: q, 
+      correct: result.correct, 
+      userAnswer: response,
+      correctAnswer: result.correct_answer || null
+    });
+  }
+  
+  // Finish attempt
+  const r = await fetch(`/attempts/${attempt.attempt_id}/finish`, {
+    method: 'POST',
+    headers: {'Authorization': 'Bearer ' + token}
+  });
+  const result = await r.json();
+  
+  // Show results with feedback
+  showResults(result, questionResults);
+}
+
+function showResults(result, questionResults) {
+  document.getElementById('quizQuestions').style.display = 'none';
+  document.getElementById('quizResults').style.display = 'block';
+  
+  const resultsContainer = document.getElementById('quizResults');
+  resultsContainer.innerHTML = `
+    <h3>Drill Complete! 🎉</h3>
+    <p id="scoreDisplay"><strong>Score: ${result.correct}/${result.total} (${Math.round(result.correct/result.total*100)}%)</strong></p>
+    <div id="questionReview"></div>
+    <a href="/dashboard" style="display:inline-block;margin-top:20px;">Back to Dashboard</a>
+  `;
+  
+  const reviewContainer = document.getElementById('questionReview');
+  
+  questionResults.forEach((qr, idx) => {
+    const q = qr.question;
+    const bgColor = qr.correct ? '#d1fae5' : '#fee2e2';
+    const borderColor = qr.correct ? '#10b981' : '#ef4444';
+    
+    const div = document.createElement('div');
+    div.className = 'question-card';
+    div.style.background = bgColor;
+    div.style.borderColor = borderColor;
+    div.style.borderWidth = '2px';
+    
+    div.innerHTML = `<strong>Question ${idx + 1}: ${qr.correct ? '✓' : '✗'}</strong><br/>`;
+    div.innerHTML += `<p>${q.prompt_text}</p>`;
+    
+    if (q.prompt_image_url) {
+      div.innerHTML += `<img src="${q.prompt_image_url}" alt="Question image" style="max-width:200px;max-height:200px;margin:10px 0;border-radius:4px" />`;
+    }
+    
+    if (q.type === 'multiple_choice') {
+      renderMCQReview(div, q, qr);
+    } else if (q.type === 'cloze') {
+      renderClozeReview(div, q, qr);
+    } else if (q.type === 'word_match') {
+      renderWordMatchReview(div, q, qr);
+    }
+    
+    reviewContainer.appendChild(div);
+  });
+}
+
+function renderMCQReview(container, question, result) {
+  const userAnswerIds = Array.isArray(result.userAnswer) ? result.userAnswer : [];
+  
+  question.options.forEach(opt => {
+    const optDiv = document.createElement('div');
+    optDiv.className = 'mcq-option';
+    optDiv.style.cursor = 'default';
+    optDiv.style.pointerEvents = 'none';
+    
+    const isUserAnswer = userAnswerIds.includes(opt.id);
+    const isCorrect = opt.is_correct;
+    
+    if (isUserAnswer) {
+      optDiv.style.border = '3px solid #2563eb';
+    }
+    
+    if (isCorrect) {
+      optDiv.style.fontWeight = 'bold';
+      optDiv.style.background = '#10b981';
+      optDiv.style.color = 'white';
+    }
+    
+    optDiv.innerText = opt.text;
+    
+    if (opt.image_url) {
+      const img = document.createElement('img');
+      img.src = opt.image_url;
+      img.alt = 'Option image';
+      img.style = 'max-width:100px;max-height:100px;margin-left:10px;vertical-align:middle;border-radius:4px';
+      optDiv.appendChild(img);
+    }
+    
+    container.appendChild(optDiv);
+  });
+}
+
+function renderClozeReview(container, question, result) {
+  const reviewDiv = document.createElement('div');
+  reviewDiv.className = 'cloze-container';
+  
+  if (!question.cloze_question || !question.cloze_question.cloze_words) {
+    reviewDiv.innerHTML = `<p>${question.prompt_text}</p>`;
+    container.appendChild(reviewDiv);
+    return;
+  }
+  
+  const fullText = question.cloze_question.full_text;
+  const words = question.cloze_question.cloze_words.sort((a, b) => a.char_position - b.char_position);
+  
+  let html = '<div>';
+  let currentPos = 0;
+  
+  words.forEach((w, idx) => {
+    const textBefore = fullText.substring(currentPos, w.char_position);
+    html += textBefore;
+    
+    const userAnswer = result.userAnswer?.[idx] || '';
+    const isCorrect = result.correct; // Simplified - would need per-blank checking for full feedback
+    
+    const borderStyle = '3px solid #2563eb';
+    const bgColor = isCorrect ? '#10b981' : '#ef4444';
+    
+    html += `<span style="display:inline-block;padding:4px 8px;border:${borderStyle};background:${bgColor};color:white;border-radius:4px;margin:0 3px;">${userAnswer || '___'}</span>`;
+    
+    if (!isCorrect) {
+      html += `<span style="display:inline-block;padding:4px 8px;background:#10b981;color:white;border-radius:4px;margin:0 3px;font-weight:bold;">${w.word}</span>`;
+    }
+    
+    currentPos = w.char_position + w.word.length;
+  });
+  
+  html += fullText.substring(currentPos);
+  html += '</div>';
+  
+  reviewDiv.innerHTML = html;
+  container.appendChild(reviewDiv);
+}
+
+function renderWordMatchReview(container, question, result) {
+  if (!question.word_pairs || question.word_pairs.length === 0) {
+    container.innerHTML += '<p>No word pairs available.</p>';
+    return;
+  }
+  
+  const reviewDiv = document.createElement('div');
+  reviewDiv.innerHTML = '<p><strong>Your matches:</strong></p>';
+  
+  question.word_pairs.forEach((pair, idx) => {
+    const pairDiv = document.createElement('div');
+    pairDiv.style.margin = '8px 0';
+    pairDiv.style.padding = '8px';
+    pairDiv.style.borderRadius = '4px';
+    pairDiv.style.background = result.correct ? '#10b981' : '#f0f0f0';
+    pairDiv.style.color = result.correct ? 'white' : 'black';
+    
+    let leftDisplay = pair.left_word;
+    if (pair.left_image_url) {
+      leftDisplay += ` <img src="${pair.left_image_url}" style="max-width:50px;max-height:50px;vertical-align:middle;margin-left:5px;border-radius:3px;" />`;
+    }
+    
+    let rightDisplay = pair.right_word;
+    if (pair.right_image_url) {
+      rightDisplay += ` <img src="${pair.right_image_url}" style="max-width:50px;max-height:50px;vertical-align:middle;margin-left:5px;border-radius:3px;" />`;
+    }
+    
+    pairDiv.innerHTML = `${leftDisplay} → ${rightDisplay}`;
+    reviewDiv.appendChild(pairDiv);
+  });
+  
+  container.appendChild(reviewDiv);
+}
+
+loadQuiz();
+</script>
+
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Welcome to DrillBuilder</h2>
+<p>Browse drills, practice with spaced repetition, or create your own custom exercises.</p>
+
+<div class="card">
+  <h3>Getting Started</h3>
+  <p><a href="/browse">Browse public drills</a> and start learning.</p>
+  <p><a href="/register">Create an account</a> to build and share your own drills, or <a href="/login">log in</a> if you already have one.</p>
+</div>
+
+<script>
+// Redirect logged-in users to dashboard
+const token = localStorage.getItem('access_token');
+if (token) {
+  window.location = '/dashboard';
+}
+</script>
+
+{% endblock %}

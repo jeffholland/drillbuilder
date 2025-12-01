@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card">
+  <h2>Log In</h2>
+  <form id="loginForm">
+    <label>Username or Email: <input name="username" required /></label><br/><br/>
+    <label>Password: <input name="password" type="password" required/></label><br/><br/>
+    <button type="submit">Log In</button>
+  </form>
+  <div id="loginResult"></div>
+  <p style="margin-top:20px;">Don't have an account? <a href="/register">Register here</a></p>
+</div>
+
+<script>
+document.getElementById('loginForm').onsubmit = async (e) => {
+  e.preventDefault()
+  const username = e.target.username.value
+  const password = e.target.password.value
+  const r = await fetch('/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username, password})})
+  const js = await r.json()
+  if (r.status === 200 && js.access_token) {
+    localStorage.setItem('access_token', js.access_token)
+    window.location = '/dashboard'
+  } else {
+    document.getElementById('loginResult').innerText = 'Login failed: ' + (js.msg || JSON.stringify(js))
+  }
+}
+</script>
+
+{% endblock %}
