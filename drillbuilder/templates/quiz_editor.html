@@ -318,7 +318,137 @@ function editQuestion(questionId) {
     saveBtn.onclick = () => updateMcq(questionId);
     
   } else if (question.type === 'cloze') {
-    alert('Editing cloze questions is not yet implemented. Please delete and recreate.');
+    // Load Cloze into editor
+    const clozeData = question.cloze_question;
+    if (!clozeData) {
+      alert('Invalid cloze question data');
+      return;
+    }
+    
+    document.getElementById('clozeText').value = clozeData.full_text;
+    document.getElementById('clozeQuestionImageUrl').value = question.prompt_image_url || '';
+    document.getElementById('clozeWordBank').checked = clozeData.word_bank || false;
+    
+    if (question.prompt_image_url) {
+      document.getElementById('clozeQuestionImagePreview').innerHTML = `<img src="${question.prompt_image_url}" style="max-width:100px;max-height:100px;border:1px solid #ddd;border-radius:4px;" /> <button type="button" onclick="removeImage('clozeQuestionImageUrl', 'clozeQuestionImagePreview')" style="font-size:11px;padding:2px 6px;">✕</button>`;
+    }
+    
+    // Show step 2 with blanks selected
+    document.getElementById('clozeStep1').style.display = 'none';
+    document.getElementById('clozeStep2').style.display = 'block';
+    document.getElementById('clozeEditor').style.display = 'block';
+    
+    // Render words with existing blanks selected
+    clozeWordData = {};
+    const text = clozeData.full_text;
+    const words = text.split(/\s+/);
+    const container = document.getElementById('clozeWordSelect');
+    container.innerHTML = '';
+    let charPos = 0;
+    
+    words.forEach((word, idx) => {
+      const wrapper = document.createElement('span');
+      wrapper.style.position = 'relative';
+      wrapper.style.display = 'inline-block';
+      wrapper.style.marginRight = '5px';
+      
+      const span = document.createElement('span');
+      span.innerText = word;
+      span.style.cursor = 'pointer';
+      span.dataset.word = word;
+      const wordCharPos = charPos;
+      span.dataset.pos = wordCharPos;
+      span.dataset.idx = idx;
+      span.className = 'cloze-word';
+      
+      // Check if this word is a blank
+      const blank = clozeData.cloze_words?.find(b => b.char_position === wordCharPos) ||
+                    clozeData.blanks?.find(b => b.char_position === wordCharPos);
+      
+      if (blank) {
+        span.classList.add('selected');
+        span.style.background = 'yellow';
+        
+        // Store blank data
+        const correctAnswer = blank.correct_answer || blank.word;
+        const alternates = blank.alternate_answers || blank.alternates || [];
+        clozeWordData[idx] = { word: correctAnswer, pos: wordCharPos, alternates: [...alternates] };
+        
+        // Update display with alternates
+        if (alternates.length > 0) {
+          span.innerText = [correctAnswer, ...alternates].join('/');
+        }
+        
+        // Add "alt" button
+        const altBtn = document.createElement('span');
+        altBtn.className = 'alt-btn';
+        altBtn.innerText = 'alt';
+        altBtn.style.cssText = 'position:absolute; top:-20px; right:-5px; background:black; color:white; padding:2px 4px; font-size:10px; cursor:pointer; border-radius:3px; z-index:10; display:none;';
+        altBtn.onclick = (e) => {
+          e.stopPropagation();
+          showAltInput(idx, span, wrapper);
+        };
+        wrapper.appendChild(altBtn);
+        
+        wrapper.onmouseenter = () => {
+          const btn = wrapper.querySelector('.alt-btn');
+          if (btn) btn.style.display = 'block';
+        };
+        wrapper.onmouseleave = () => {
+          const btn = wrapper.querySelector('.alt-btn');
+          if (btn) btn.style.display = 'none';
+        };
+      }
+      
+      span.onclick = () => {
+        const isSelected = span.classList.contains('selected');
+        span.classList.toggle('selected');
+        
+        if (!isSelected) {
+          span.style.background = 'yellow';
+          clozeWordData[idx] = { word, pos: wordCharPos, alternates: [] };
+
+          const altBtn = document.createElement('span');
+          altBtn.className = 'alt-btn';
+          altBtn.innerText = 'alt';
+          altBtn.style.cssText = 'position:absolute; top:-20px; right:-5px; background:black; color:white; padding:2px 4px; font-size:10px; cursor:pointer; border-radius:3px; z-index:10; display:none;';
+          altBtn.onclick = (e) => {
+            e.stopPropagation();
+            showAltInput(idx, span, wrapper);
+          };
+          wrapper.appendChild(altBtn);
+          
+          wrapper.onmouseenter = () => {
+            const btn = wrapper.querySelector('.alt-btn');
+            if (btn) btn.style.display = 'block';
+          };
+          wrapper.onmouseleave = () => {
+            const btn = wrapper.querySelector('.alt-btn');
+            if (btn) btn.style.display = 'none';
+          };
+        } else {
+          span.style.background = '';
+          delete clozeWordData[idx];
+          const altBtn = wrapper.querySelector('.alt-btn');
+          if (altBtn) altBtn.remove();
+          const altInput = wrapper.querySelector('.alt-input-container');
+          if (altInput) altInput.remove();
+        }
+        
+        updateWordDisplay(idx, span);
+      };
+      
+      wrapper.appendChild(span);
+      container.appendChild(wrapper);
+      container.appendChild(document.createTextNode(' '));
+      charPos += word.length + 1;
+    });
+    
+    // Change save button to update
+    const clozeBtn = document.getElementById('saveCloze');
+    clozeBtn.innerText = 'Update Cloze';
+    clozeBtn.onclick = () => updateCloze(questionId);
+    
   } else if (question.type === 'word_match') {
     alert('Editing word match questions is not yet implemented. Please delete and recreate.');
   }
@@ -357,7 +487,6 @@ async function updateMcq(questionId) {
       body: JSON.stringify(payload)
     });
     if (r.status === 201) {
-      alert('MCQ updated!');
       resetMcqEditor();
       hideAllEditors();
       loadQuiz();
@@ -407,7 +536,6 @@ async function deleteQuestion(questionId) {
   });
   
   if (r.ok) {
-    alert('Question deleted');
     loadQuiz();
   } else {
     alert('Failed to delete question');
@@ -502,7 +630,6 @@ const saveMcqOriginal = async () => {
     body: JSON.stringify(payload)
   });
   if (r.status === 201) {
-    alert('MCQ added!');
     resetMcqEditor();
     hideAllEditors();
     loadQuiz();
@@ -646,10 +773,75 @@ function updateWordDisplay(idx, span) {
 }
 
 document.getElementById('cancelClozeStep1').onclick = () => {
+  resetClozeEditor();
   hideAllEditors();
 };
 
-document.getElementById('saveCloze').onclick = async () => {
+async function updateCloze(questionId) {
+  const text = document.getElementById('clozeText').value.trim();
+  const wordBank = document.getElementById('clozeWordBank').checked;
+  const clozeQuestionImageUrl = document.getElementById('clozeQuestionImageUrl').value || null;
+  
+  const blanks = Object.values(clozeWordData).map(data => ({
+    word: data.word,
+    char_position: data.pos,
+    alternates: data.alternates
+  }));
+
+  if (!blanks.length) { alert('Select at least one word as blank'); return; }
+
+  // Delete old question and create new one
+  const delR = await fetch(`/quizzes/${quizId}/questions/${questionId}`, {
+    method: 'DELETE',
+    headers: {'Authorization': 'Bearer ' + token}
+  });
+  
+  if (delR.ok) {
+    const payload = {
+      type: 'cloze',
+      prompt_text: text,
+      prompt_image_url: clozeQuestionImageUrl,
+      cloze_data: { 
+        full_text: text, 
+        blanks,
+        word_bank: wordBank
+      }
+    };
+    
+    const r = await fetch(`/quizzes/${quizId}/questions`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
+      body: JSON.stringify(payload)
+    });
+    
+    if (r.status === 201) {
+      resetClozeEditor();
+      hideAllEditors();
+      loadQuiz();
+    } else {
+      alert('Failed to update cloze');
+    }
+  } else {
+    alert('Failed to delete old question');
+  }
+}
+
+function resetClozeEditor() {
+  document.getElementById('clozeText').value = '';
+  document.getElementById('clozeWordBank').checked = false;
+  document.getElementById('clozeQuestionImageUrl').value = '';
+  document.getElementById('clozeQuestionImagePreview').innerHTML = '';
+  document.getElementById('clozeStep1').style.display = 'block';
+  document.getElementById('clozeStep2').style.display = 'none';
+  clozeWordData = {};
+  
+  // Reset save button
+  const clozeBtn = document.getElementById('saveCloze');
+  clozeBtn.innerText = 'Save Cloze Question';
+  clozeBtn.onclick = saveClozeOriginal;
+}
+
+const saveClozeOriginal = async () => {
   const text = document.getElementById('clozeText').value.trim();
   const wordBank = document.getElementById('clozeWordBank').checked;
   const clozeQuestionImageUrl = document.getElementById('clozeQuestionImageUrl').value || null;
@@ -682,14 +874,7 @@ document.getElementById('saveCloze').onclick = async () => {
   });
   
   if (r.status === 201) {
-    alert('Cloze question added!');
-    document.getElementById('clozeText').value = '';
-    document.getElementById('clozeWordBank').checked = false;
-    document.getElementById('clozeQuestionImageUrl').value = '';
-    document.getElementById('clozeQuestionImagePreview').innerHTML = '';
-    document.getElementById('clozeStep1').style.display = 'block';
-    document.getElementById('clozeStep2').style.display = 'none';
-    clozeWordData = {};
+    resetClozeEditor();
     hideAllEditors();
     loadQuiz();
   } else {
@@ -697,9 +882,10 @@ document.getElementById('saveCloze').onclick = async () => {
   }
 };
 
+document.getElementById('saveCloze').onclick = saveClozeOriginal;
+
 document.getElementById('cancelCloze').onclick = () => {
-  document.getElementById('clozeStep1').style.display = 'block';
-  document.getElementById('clozeStep2').style.display = 'none';
+  resetClozeEditor();
   hideAllEditors();
 };
 
