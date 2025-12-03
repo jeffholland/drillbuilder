@@ -132,11 +132,11 @@ async function loadQuizzes(){
       const el = document.createElement('div')
       el.style.margin = '10px 0'
       const prog = progressMap[q.id]
-      const scoreText = prog ? ` | <span style="color:#10b981">Best: ${Math.round(prog.accuracy * 100)}% (${prog.attempts} attempts)</span>` : ''
+      const scoreText = prog ? ` <span>Best: ${Math.round(prog.accuracy * 100)}% (${prog.attempts} attempts)</span>` : ''
       const publicBadge = q.is_public ? ' <span style="background:#10b981;color:white;padding:2px 6px;border-radius:3px;font-size:0.8em">PUBLIC</span>' : ''
       const langDisplay = q.language_name || q.language || 'n/a'
-      const clearBtn = prog ? ` | <button data-id="${q.id}" class="clear-results">Clear Results</button>` : ''
-      el.innerHTML = `<strong>${q.title}</strong>${publicBadge} (${langDisplay})${scoreText} — <a href="/quiz-editor?id=${q.id}">Edit Questions</a> | <button data-id="${q.id}" class="rename">Rename</button> <button data-id="${q.id}" class="delete">Delete</button> | <a href="/take/${q.id}">Take</a> | <button data-id="${q.id}" data-title="${q.title}" class="share">Share</button>${clearBtn}`
+      const clearBtn = prog ? ` <button data-id="${q.id}" class="clear-results">Clear Results</button>` : ''
+      el.innerHTML = `<strong>${q.title}</strong>${publicBadge} (${langDisplay})${scoreText} — <button onclick="window.location.href='/quiz-editor?id=${q.id}'">Edit Questions</button> <button data-id="${q.id}" class="rename">Rename</button> <button data-id="${q.id}" class="delete">Delete</button> <button onclick="window.location.href='/take/${q.id}'">Take</button> <button data-id="${q.id}" data-title="${q.title}" class="share">Share</button>${clearBtn}`
       ul.appendChild(el)
     })
     node.innerHTML = ''
@@ -156,10 +156,10 @@ async function loadQuizzes(){
       const el = document.createElement('div')
       el.style.margin = '10px 0'
       const prog = progressMap[q.id]
-      const scoreText = prog ? ` | <span style="color:#10b981">Best: ${Math.round(prog.accuracy * 100)}% (${prog.attempts} attempts)</span>` : ''
+      const scoreText = prog ? ` <span style="color:#10b981">Best: ${Math.round(prog.accuracy * 100)}% (${prog.attempts} attempts)</span>` : ''
       const langDisplay = q.language_name || q.language || 'n/a'
-      const clearBtn = prog ? ` | <button data-id="${q.id}" class="clear-results">Clear Results</button>` : ''
-      el.innerHTML = `<strong>${q.title}</strong> (${langDisplay})${scoreText} — <a href="/take/${q.id}">Take</a> | <button data-id="${q.id}" data-title="${q.title}" class="share">Share</button> | <button data-id="${q.id}" class="unsave">Remove</button>${clearBtn}`
+      const clearBtn = prog ? ` <button data-id="${q.id}" class="clear-results">Clear Results</button>` : ''
+      el.innerHTML = `<strong>${q.title}</strong> (${langDisplay})${scoreText} — <a href="/take/${q.id}">Take</a> <button data-id="${q.id}" data-title="${q.title}" class="share">Share</button> <button data-id="${q.id}" class="unsave">Remove</button>${clearBtn}`
       ul.appendChild(el)
     })
     savedNode.innerHTML = ''
