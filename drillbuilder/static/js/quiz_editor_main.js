@@ -14,7 +14,8 @@ if (!quizId) { window.location = '/dashboard'; }
 
 let allQuestions = [];
 
-// Expose image upload functions to window for inline handlers
+// Expose quizId and image upload functions to window for inline handlers
+window.quizId = quizId;
 window.imageUpload = imageUpload;
 window.handleChoiceImageUpload = (fileInput) => imageUpload.handleChoiceImageUpload(fileInput, token);
 window.handleWMImageUpload = (fileInput, side) => imageUpload.handleWMImageUpload(fileInput, side, token);
