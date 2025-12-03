@@ -1,0 +1,268 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card">
+  <h2>Settings</h2>
+  <p>Customize your DrillBuilder experience</p>
+</div>
+
+<div class="card">
+  <h3>Color Scheme</h3>
+  <p style="color:var(--muted);font-size:14px;">Customize the colors used throughout the app. Changes are saved automatically and applied immediately.</p>
+  
+  <div style="display:grid;gap:20px;margin-top:20px;">
+    <!-- Background Color -->
+    <div class="color-control">
+      <label style="display:block;margin-bottom:8px;font-weight:500;">Background Color</label>
+      <div style="display:flex;gap:12px;align-items:center;">
+        <input type="color" id="bgColor" value="#f8fafc" style="width:60px;height:40px;padding:2px;cursor:pointer;" />
+        <input type="text" id="bgColorHex" value="#f8fafc" placeholder="#f8fafc" style="width:100px;font-family:monospace;" />
+        <div style="flex:1;display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center;">
+          <label style="font-size:13px;">R</label>
+          <input type="range" id="bgColorR" min="0" max="255" value="248" style="width:100%;" />
+          <label style="font-size:13px;">G</label>
+          <input type="range" id="bgColorG" min="0" max="255" value="250" style="width:100%;" />
+          <label style="font-size:13px;">B</label>
+          <input type="range" id="bgColorB" min="0" max="255" value="252" style="width:100%;" />
+        </div>
+        <button onclick="resetColor('bg')" style="background:#64748b;padding:6px 12px;font-size:13px;">Reset</button>
+      </div>
+    </div>
+
+    <!-- Card Color -->
+    <div class="color-control">
+      <label style="display:block;margin-bottom:8px;font-weight:500;">Card Background</label>
+      <div style="display:flex;gap:12px;align-items:center;">
+        <input type="color" id="cardColor" value="#ffffff" style="width:60px;height:40px;padding:2px;cursor:pointer;" />
+        <input type="text" id="cardColorHex" value="#ffffff" placeholder="#ffffff" style="width:100px;font-family:monospace;" />
+        <div style="flex:1;display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center;">
+          <label style="font-size:13px;">R</label>
+          <input type="range" id="cardColorR" min="0" max="255" value="255" style="width:100%;" />
+          <label style="font-size:13px;">G</label>
+          <input type="range" id="cardColorG" min="0" max="255" value="255" style="width:100%;" />
+          <label style="font-size:13px;">B</label>
+          <input type="range" id="cardColorB" min="0" max="255" value="255" style="width:100%;" />
+        </div>
+        <button onclick="resetColor('card')" style="background:#64748b;padding:6px 12px;font-size:13px;">Reset</button>
+      </div>
+    </div>
+
+    <!-- Text Color -->
+    <div class="color-control">
+      <label style="display:block;margin-bottom:8px;font-weight:500;">Text Color</label>
+      <div style="display:flex;gap:12px;align-items:center;">
+        <input type="color" id="textColor" value="#0f172a" style="width:60px;height:40px;padding:2px;cursor:pointer;" />
+        <input type="text" id="textColorHex" value="#0f172a" placeholder="#0f172a" style="width:100px;font-family:monospace;" />
+        <div style="flex:1;display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center;">
+          <label style="font-size:13px;">R</label>
+          <input type="range" id="textColorR" min="0" max="255" value="15" style="width:100%;" />
+          <label style="font-size:13px;">G</label>
+          <input type="range" id="textColorG" min="0" max="255" value="23" style="width:100%;" />
+          <label style="font-size:13px;">B</label>
+          <input type="range" id="textColorB" min="0" max="255" value="42" style="width:100%;" />
+        </div>
+        <button onclick="resetColor('text')" style="background:#64748b;padding:6px 12px;font-size:13px;">Reset</button>
+      </div>
+    </div>
+
+    <!-- Muted Color -->
+    <div class="color-control">
+      <label style="display:block;margin-bottom:8px;font-weight:500;">Muted Text Color</label>
+      <div style="display:flex;gap:12px;align-items:center;">
+        <input type="color" id="mutedColor" value="#64748b" style="width:60px;height:40px;padding:2px;cursor:pointer;" />
+        <input type="text" id="mutedColorHex" value="#64748b" placeholder="#64748b" style="width:100px;font-family:monospace;" />
+        <div style="flex:1;display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center;">
+          <label style="font-size:13px;">R</label>
+          <input type="range" id="mutedColorR" min="0" max="255" value="100" style="width:100%;" />
+          <label style="font-size:13px;">G</label>
+          <input type="range" id="mutedColorG" min="0" max="255" value="116" style="width:100%;" />
+          <label style="font-size:13px;">B</label>
+          <input type="range" id="mutedColorB" min="0" max="255" value="139" style="width:100%;" />
+        </div>
+        <button onclick="resetColor('muted')" style="background:#64748b;padding:6px 12px;font-size:13px;">Reset</button>
+      </div>
+    </div>
+
+    <!-- Accent Color -->
+    <div class="color-control">
+      <label style="display:block;margin-bottom:8px;font-weight:500;">Accent Color (Buttons)</label>
+      <div style="display:flex;gap:12px;align-items:center;">
+        <input type="color" id="accentColor" value="#2563eb" style="width:60px;height:40px;padding:2px;cursor:pointer;" />
+        <input type="text" id="accentColorHex" value="#2563eb" placeholder="#2563eb" style="width:100px;font-family:monospace;" />
+        <div style="flex:1;display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center;">
+          <label style="font-size:13px;">R</label>
+          <input type="range" id="accentColorR" min="0" max="255" value="37" style="width:100%;" />
+          <label style="font-size:13px;">G</label>
+          <input type="range" id="accentColorG" min="0" max="255" value="99" style="width:100%;" />
+          <label style="font-size:13px;">B</label>
+          <input type="range" id="accentColorB" min="0" max="255" value="235" style="width:100%;" />
+        </div>
+        <button onclick="resetColor('accent')" style="background:#64748b;padding:6px 12px;font-size:13px;">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:30px;padding-top:20px;border-top:1px solid #e6eefb;">
+    <button onclick="resetAllColors()" style="background:#ef4444;padding:10px 20px;">Reset All to Default</button>
+    <span style="margin-left:12px;color:var(--muted);font-size:14px;">Restore original color scheme</span>
+  </div>
+</div>
+
+<script>
+// Default colors
+const defaults = {
+  bg: '#f8fafc',
+  card: '#ffffff',
+  text: '#0f172a',
+  muted: '#64748b',
+  accent: '#2563eb'
+};
+
+// Load saved colors from localStorage
+function loadColors() {
+  const saved = localStorage.getItem('colorScheme');
+  if (saved) {
+    const colors = JSON.parse(saved);
+    applyColors(colors);
+    updateControls(colors);
+  }
+}
+
+// Apply colors to CSS variables
+function applyColors(colors) {
+  document.documentElement.style.setProperty('--bg', colors.bg);
+  document.documentElement.style.setProperty('--card', colors.card);
+  document.documentElement.style.setProperty('--text', colors.text);
+  document.documentElement.style.setProperty('--muted', colors.muted);
+  document.documentElement.style.setProperty('--accent', colors.accent);
+}
+
+// Update all controls with current colors
+function updateControls(colors) {
+  Object.keys(colors).forEach(key => {
+    const color = colors[key];
+    const rgb = hexToRgb(color);
+    
+    document.getElementById(`${key}Color`).value = color;
+    document.getElementById(`${key}ColorHex`).value = color;
+    document.getElementById(`${key}ColorR`).value = rgb.r;
+    document.getElementById(`${key}ColorG`).value = rgb.g;
+    document.getElementById(`${key}ColorB`).value = rgb.b;
+  });
+}
+
+// Save colors to localStorage
+function saveColors() {
+  const colors = {
+    bg: document.getElementById('bgColor').value,
+    card: document.getElementById('cardColor').value,
+    text: document.getElementById('textColor').value,
+    muted: document.getElementById('mutedColor').value,
+    accent: document.getElementById('accentColor').value
+  };
+  localStorage.setItem('colorScheme', JSON.stringify(colors));
+  applyColors(colors);
+}
+
+// Convert hex to RGB
+function hexToRgb(hex) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : { r: 0, g: 0, b: 0 };
+}
+
+// Convert RGB to hex
+function rgbToHex(r, g, b) {
+  return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+
+// Setup color control for a specific color
+function setupColorControl(name) {
+  const colorPicker = document.getElementById(`${name}Color`);
+  const hexInput = document.getElementById(`${name}ColorHex`);
+  const rSlider = document.getElementById(`${name}ColorR`);
+  const gSlider = document.getElementById(`${name}ColorG`);
+  const bSlider = document.getElementById(`${name}ColorB`);
+  
+  // Color picker change
+  colorPicker.addEventListener('input', (e) => {
+    const color = e.target.value;
+    const rgb = hexToRgb(color);
+    hexInput.value = color;
+    rSlider.value = rgb.r;
+    gSlider.value = rgb.g;
+    bSlider.value = rgb.b;
+    saveColors();
+  });
+  
+  // Hex input change
+  hexInput.addEventListener('input', (e) => {
+    const color = e.target.value;
+    if (/^#[0-9A-F]{6}$/i.test(color)) {
+      const rgb = hexToRgb(color);
+      colorPicker.value = color;
+      rSlider.value = rgb.r;
+      gSlider.value = rgb.g;
+      bSlider.value = rgb.b;
+      saveColors();
+    }
+  });
+  
+  // RGB slider changes
+  const updateFromRgb = () => {
+    const r = parseInt(rSlider.value);
+    const g = parseInt(gSlider.value);
+    const b = parseInt(bSlider.value);
+    const hex = rgbToHex(r, g, b);
+    colorPicker.value = hex;
+    hexInput.value = hex;
+    saveColors();
+  };
+  
+  rSlider.addEventListener('input', updateFromRgb);
+  gSlider.addEventListener('input', updateFromRgb);
+  bSlider.addEventListener('input', updateFromRgb);
+}
+
+// Reset single color to default
+function resetColor(name) {
+  const color = defaults[name];
+  const rgb = hexToRgb(color);
+  
+  document.getElementById(`${name}Color`).value = color;
+  document.getElementById(`${name}ColorHex`).value = color;
+  document.getElementById(`${name}ColorR`).value = rgb.r;
+  document.getElementById(`${name}ColorG`).value = rgb.g;
+  document.getElementById(`${name}ColorB`).value = rgb.b;
+  
+  saveColors();
+}
+
+// Reset all colors to default
+function resetAllColors() {
+  if (confirm('Reset all colors to default? This cannot be undone.')) {
+    updateControls(defaults);
+    saveColors();
+  }
+}
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', () => {
+  // Setup all color controls
+  ['bg', 'card', 'text', 'muted', 'accent'].forEach(setupColorControl);
+  
+  // Load saved colors
+  loadColors();
+});
+
+// Also apply on page load (before DOMContentLoaded for faster rendering)
+loadColors();
+
+// Expose functions to window for inline handlers
+window.resetColor = resetColor;
+window.resetAllColors = resetAllColors;
+</script>
+{% endblock %}

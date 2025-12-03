@@ -107,7 +107,41 @@ function editQuestion(questionId) {
     clozeBtn.onclick = () => clozeEditor.updateCloze(questionId, token, quizId, clozeEditorState.resetClozeEditor, quizManager.hideAllEditors, loadQuizWrapper, clozeEditorState.clozeWordData);
     
   } else if (question.type === 'word_match') {
-    alert('Editing word match questions is not yet implemented. Please delete and recreate.');
+    // Load Word Match into editor
+    document.getElementById('wmQuestionImageUrl').value = question.prompt_image_url || '';
+    if (question.prompt_image_url) {
+      document.getElementById('wmQuestionImagePreview').innerHTML = `<img src="${question.prompt_image_url}" style="max-width:100px;max-height:100px;border:1px solid #ddd;border-radius:4px;" /> <button type="button" onclick="window.imageUpload.removeImage('wmQuestionImageUrl', 'wmQuestionImagePreview')" style="font-size:11px;padding:2px 6px;">✕</button>`;
+    }
+    
+    const container = document.getElementById('wordMatchPairs');
+    container.innerHTML = '';
+    question.word_pairs.forEach(pair => {
+      const div = document.createElement('div');
+      div.className = 'word-match-pair';
+      div.innerHTML = `
+        <input type="text" placeholder="Left word" class="wm-left" value="${pair.left_word || ''}" />
+        <button type="button" onclick="window.imageUpload.triggerWMImageUpload(this, 'left')" style="font-size:11px;padding:2px 6px;margin:0 5px;">📷</button>
+        <span> → </span>
+        <input type="text" placeholder="Right word" class="wm-right" value="${pair.right_word || ''}" />
+        <button type="button" onclick="window.imageUpload.triggerWMImageUpload(this, 'right')" style="font-size:11px;padding:2px 6px;margin:0 5px;">📷</button>
+        <input type="file" class="wm-left-image-input" accept=".jpg,.jpeg" style="display:none;" onchange="window.handleWMImageUpload(this, 'left')" />
+        <input type="hidden" class="wm-left-image-url" value="${pair.left_image_url || ''}" />
+        <input type="file" class="wm-right-image-input" accept=".jpg,.jpeg" style="display:none;" onchange="window.handleWMImageUpload(this, 'right')" />
+        <input type="hidden" class="wm-right-image-url" value="${pair.right_image_url || ''}" />
+        <div class="wm-left-preview" style="display:inline-block;margin-left:5px;">${pair.left_image_url ? `<img src="${pair.left_image_url}" style="max-width:50px;max-height:50px;border:1px solid #ddd;border-radius:3px;vertical-align:middle;" />` : ''}</div>
+        <div class="wm-right-preview" style="display:inline-block;margin-left:5px;">${pair.right_image_url ? `<img src="${pair.right_image_url}" style="max-width:50px;max-height:50px;border:1px solid #ddd;border-radius:3px;vertical-align:middle;" />` : ''}</div>
+        <button class="delete-pair" style="margin-left:10px">Delete</button>
+      `;
+      container.appendChild(div);
+    });
+    
+    wordMatchEditorState.updateWordPairDelete();
+    document.getElementById('wordMatchEditor').style.display = 'block';
+    
+    // Change save button to update
+    const saveBtn = document.getElementById('saveWordMatch');
+    saveBtn.innerText = 'Update Word Match';
+    saveBtn.onclick = () => wordMatchEditor.updateWordMatch(questionId, token, quizId, wordMatchEditorState.resetWordMatchEditor, quizManager.hideAllEditors, loadQuizWrapper);
   }
 }
 

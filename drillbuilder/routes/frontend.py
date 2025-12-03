@@ -41,3 +41,8 @@ def take_quiz(quiz_id):
 @bp.get("/browse")
 def browse_quizzes():
     return render_template("browse_quizzes.html")
+
+
+@bp.get("/settings")
+def settings_page():
+    return render_template("settings.html")

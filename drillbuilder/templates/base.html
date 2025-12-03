@@ -5,6 +5,20 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>DrillBuilder</title>
     <link rel="stylesheet" href="/static/css/style.css" />
+    <script>
+      // Load color scheme immediately to prevent flash
+      (function() {
+        const saved = localStorage.getItem('colorScheme');
+        if (saved) {
+          const colors = JSON.parse(saved);
+          document.documentElement.style.setProperty('--bg', colors.bg);
+          document.documentElement.style.setProperty('--card', colors.card);
+          document.documentElement.style.setProperty('--text', colors.text);
+          document.documentElement.style.setProperty('--muted', colors.muted);
+          document.documentElement.style.setProperty('--accent', colors.accent);
+        }
+      })();
+    </script>
   </head>
   <body>
     <header>
@@ -14,7 +28,7 @@
           <a href="/">Home</a> | <a href="/browse">Browse Drills</a>
         </span>
         <span style="float:right;display:none;" id="navAuthd">
-          <a href="/dashboard">Dashboard</a> | <a href="#" id="navLogout">Logout</a>
+          <a href="/dashboard">Dashboard</a> | <a href="/settings">Settings</a> | <a href="#" id="navLogout">Logout</a>
         </span>
         <span style="float:right;" id="navAuth">
           <a href="/register" id="navRegister">Register</a> | <a href="/login" id="navLogin">Login</a>
