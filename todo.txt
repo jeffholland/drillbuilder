@@ -1,17 +1,21 @@
 -----------------------------------------------------------------
 
+In progress
+
+- Editing questions - Cloze
+
+-----------------------------------------------------------------
+
 To-do
 
-Make sure that Cloze words don't take punctuation along with them
-- and are not case sensitive
+Drill properties
+- User can add heading
+- User can add info section - no question, just text
+- User can add drill description
 
-Create quiz
-- "Previously used languages" come up first in the language selector.
-- Order language selector options by most to least frequently used first (then alphabetical).
-- Edit existing questions
+Modular - organize drills into courses
 
 Dashboard
-- Download quiz as json or csv file
 - View previous results
 
 Other
@@ -34,3 +38,13 @@ Multiple choice
 - Allow deletion of ALL choices once more than 2 exist
 
 Interface for reviewing mistakes after a quiz
+
+Make sure that Cloze words don't take punctuation along with them
+- and are not case sensitive
+
+Create quiz
+- "Previously used languages" come up first in the language selector.
+- Order language selector options by most to least frequently used first (then alphabetical).
+- Edit existing questions
+
+Download quiz as json or csv file

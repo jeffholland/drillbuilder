@@ -318,7 +318,7 @@ function editQuestion(questionId) {
     saveBtn.onclick = () => updateMcq(questionId);
     
   } else if (question.type === 'cloze') {
-    // Load Cloze into editor
+    // Load Cloze into editor - start at step 1 to allow text editing
     const clozeData = question.cloze_question;
     if (!clozeData) {
       alert('Invalid cloze question data');
@@ -333,118 +333,22 @@ function editQuestion(questionId) {
       document.getElementById('clozeQuestionImagePreview').innerHTML = `<img src="${question.prompt_image_url}" style="max-width:100px;max-height:100px;border:1px solid #ddd;border-radius:4px;" /> <button type="button" onclick="removeImage('clozeQuestionImageUrl', 'clozeQuestionImagePreview')" style="font-size:11px;padding:2px 6px;">✕</button>`;
     }
     
-    // Show step 2 with blanks selected
-    document.getElementById('clozeStep1').style.display = 'none';
-    document.getElementById('clozeStep2').style.display = 'block';
+    // Store existing blanks data for restoration in step 2
+    const existingBlanks = (clozeData.cloze_words || clozeData.blanks || []).map(b => ({
+      word: b.correct_answer || b.word,
+      char_position: b.char_position,
+      alternates: b.alternate_answers || b.alternates || []
+    }));
+    
+    // Store in a temporary variable accessible to the Next button
+    window.editingClozeData = { existingBlanks };
+    
+    // Show step 1
+    document.getElementById('clozeStep1').style.display = 'block';
+    document.getElementById('clozeStep2').style.display = 'none';
     document.getElementById('clozeEditor').style.display = 'block';
     
-    // Render words with existing blanks selected
-    clozeWordData = {};
-    const text = clozeData.full_text;
-    const words = text.split(/\s+/);
-    const container = document.getElementById('clozeWordSelect');
-    container.innerHTML = '';
-    let charPos = 0;
-    
-    words.forEach((word, idx) => {
-      const wrapper = document.createElement('span');
-      wrapper.style.position = 'relative';
-      wrapper.style.display = 'inline-block';
-      wrapper.style.marginRight = '5px';
-      
-      const span = document.createElement('span');
-      span.innerText = word;
-      span.style.cursor = 'pointer';
-      span.dataset.word = word;
-      const wordCharPos = charPos;
-      span.dataset.pos = wordCharPos;
-      span.dataset.idx = idx;
-      span.className = 'cloze-word';
-      
-      // Check if this word is a blank
-      const blank = clozeData.cloze_words?.find(b => b.char_position === wordCharPos) ||
-                    clozeData.blanks?.find(b => b.char_position === wordCharPos);
-      
-      if (blank) {
-        span.classList.add('selected');
-        span.style.background = 'yellow';
-        
-        // Store blank data
-        const correctAnswer = blank.correct_answer || blank.word;
-        const alternates = blank.alternate_answers || blank.alternates || [];
-        clozeWordData[idx] = { word: correctAnswer, pos: wordCharPos, alternates: [...alternates] };
-        
-        // Update display with alternates
-        if (alternates.length > 0) {
-          span.innerText = [correctAnswer, ...alternates].join('/');
-        }
-        
-        // Add "alt" button
-        const altBtn = document.createElement('span');
-        altBtn.className = 'alt-btn';
-        altBtn.innerText = 'alt';
-        altBtn.style.cssText = 'position:absolute; top:-20px; right:-5px; background:black; color:white; padding:2px 4px; font-size:10px; cursor:pointer; border-radius:3px; z-index:10; display:none;';
-        altBtn.onclick = (e) => {
-          e.stopPropagation();
-          showAltInput(idx, span, wrapper);
-        };
-        wrapper.appendChild(altBtn);
-        
-        wrapper.onmouseenter = () => {
-          const btn = wrapper.querySelector('.alt-btn');
-          if (btn) btn.style.display = 'block';
-        };
-        wrapper.onmouseleave = () => {
-          const btn = wrapper.querySelector('.alt-btn');
-          if (btn) btn.style.display = 'none';
-        };
-      }
-      
-      span.onclick = () => {
-        const isSelected = span.classList.contains('selected');
-        span.classList.toggle('selected');
-        
-        if (!isSelected) {
-          span.style.background = 'yellow';
-          clozeWordData[idx] = { word, pos: wordCharPos, alternates: [] };
-
-          const altBtn = document.createElement('span');
-          altBtn.className = 'alt-btn';
-          altBtn.innerText = 'alt';
-          altBtn.style.cssText = 'position:absolute; top:-20px; right:-5px; background:black; color:white; padding:2px 4px; font-size:10px; cursor:pointer; border-radius:3px; z-index:10; display:none;';
-          altBtn.onclick = (e) => {
-            e.stopPropagation();
-            showAltInput(idx, span, wrapper);
-          };
-          wrapper.appendChild(altBtn);
-          
-          wrapper.onmouseenter = () => {
-            const btn = wrapper.querySelector('.alt-btn');
-            if (btn) btn.style.display = 'block';
-          };
-          wrapper.onmouseleave = () => {
-            const btn = wrapper.querySelector('.alt-btn');
-            if (btn) btn.style.display = 'none';
-          };
-        } else {
-          span.style.background = '';
-          delete clozeWordData[idx];
-          const altBtn = wrapper.querySelector('.alt-btn');
-          if (altBtn) altBtn.remove();
-          const altInput = wrapper.querySelector('.alt-input-container');
-          if (altInput) altInput.remove();
-        }
-        
-        updateWordDisplay(idx, span);
-      };
-      
-      wrapper.appendChild(span);
-      container.appendChild(wrapper);
-      container.appendChild(document.createTextNode(' '));
-      charPos += word.length + 1;
-    });
-    
-    // Change save button to update
+    // Change save button to update (in case they go to step 2)
     const clozeBtn = document.getElementById('saveCloze');
     clozeBtn.innerText = 'Update Cloze';
     clozeBtn.onclick = () => updateCloze(questionId);
@@ -657,6 +561,10 @@ document.getElementById('clozeNext').onclick = () => {
   container.innerHTML = '';
   let charPos = 0;
   
+  // Get existing blanks if we're editing
+  const existingBlanks = window.editingClozeData?.existingBlanks || [];
+  let removedCount = 0;
+  
   words.forEach((word, idx) => {
     const wrapper = document.createElement('span');
     wrapper.style.position = 'relative';
@@ -672,6 +580,45 @@ document.getElementById('clozeNext').onclick = () => {
     console.log(`Setting position to ${wordCharPos} for word "${word}" at index ${idx}`);
     span.dataset.idx = idx;
     span.className = 'cloze-word';
+    
+    // Check if this word was previously a blank at this exact position
+    const existingBlank = existingBlanks.find(b => b.char_position === wordCharPos && b.word === word);
+    
+    if (existingBlank) {
+      // Restore the blank with its data
+      span.classList.add('selected');
+      span.style.background = 'yellow';
+      clozeWordData[idx] = { 
+        word: existingBlank.word, 
+        pos: wordCharPos, 
+        alternates: [...existingBlank.alternates] 
+      };
+      
+      // Update display with alternates
+      if (existingBlank.alternates.length > 0) {
+        span.innerText = [existingBlank.word, ...existingBlank.alternates].join('/');
+      }
+      
+      // Add "alt" button
+      const altBtn = document.createElement('span');
+      altBtn.className = 'alt-btn';
+      altBtn.innerText = 'alt';
+      altBtn.style.cssText = 'position:absolute; top:-20px; right:-5px; background:black; color:white; padding:2px 4px; font-size:10px; cursor:pointer; border-radius:3px; z-index:10; display:none;';
+      altBtn.onclick = (e) => {
+        e.stopPropagation();
+        showAltInput(idx, span, wrapper);
+      };
+      wrapper.appendChild(altBtn);
+      
+      wrapper.onmouseenter = () => {
+        const btn = wrapper.querySelector('.alt-btn');
+        if (btn) btn.style.display = 'block';
+      };
+      wrapper.onmouseleave = () => {
+        const btn = wrapper.querySelector('.alt-btn');
+        if (btn) btn.style.display = 'none';
+      };
+    }
     
     span.onclick = () => {
       const isSelected = span.classList.contains('selected');
@@ -721,6 +668,15 @@ document.getElementById('clozeNext').onclick = () => {
     container.appendChild(document.createTextNode(' '));
     charPos += word.length + 1;
   });
+  
+  // Count how many blanks were removed
+  removedCount = existingBlanks.length - Object.keys(clozeWordData).length;
+  if (removedCount > 0) {
+    console.log(`Removed ${removedCount} blank(s) that no longer match original position/word`);
+  }
+  
+  // Clear the editing data
+  delete window.editingClozeData;
 };
 
 function showAltInput(idx, span, wrapper) {
@@ -834,6 +790,9 @@ function resetClozeEditor() {
   document.getElementById('clozeStep1').style.display = 'block';
   document.getElementById('clozeStep2').style.display = 'none';
   clozeWordData = {};
+  
+  // Clear any editing data
+  delete window.editingClozeData;
   
   // Reset save button
   const clozeBtn = document.getElementById('saveCloze');
