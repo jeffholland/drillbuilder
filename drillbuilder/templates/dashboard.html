@@ -1,6 +1,51 @@
 {% extends 'base.html' %}
 
 {% block content %}
+<style>
+.drill-item {
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid #e6eefb;
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.drill-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.drill-info {
+  flex: 1;
+}
+
+.drill-actions {
+  display: none;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e6eefb;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.drill-actions.expanded {
+  display: flex;
+}
+
+.drill-actions button {
+  font-size: 14px;
+  padding: 6px 12px;
+}
+
+.toggle-actions {
+  background: var(--muted);
+  padding: 6px 12px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+</style>
+
 <div class="card">
   <h2>Your Dashboard</h2>
   <div>
@@ -42,7 +87,6 @@
 <script>
 const token = localStorage.getItem('access_token')
 if (!token) {
-  // redirect to register/login page if not logged in
   window.location = '/register'
 }
 
@@ -51,10 +95,8 @@ async function loadLanguages() {
   const languages = await r.json()
   const select = document.getElementById('languageSelect')
   
-  // Get user's language history from localStorage
   const langHistory = JSON.parse(localStorage.getItem('languageHistory') || '[]')
   
-  // Split languages into used and unused
   const usedLangs = []
   const unusedLangs = []
   
@@ -66,13 +108,9 @@ async function loadLanguages() {
     }
   })
   
-  // Sort used by most recent (reverse order in history array)
   usedLangs.sort((a, b) => langHistory.indexOf(b.code) - langHistory.indexOf(a.code))
-  
-  // Sort unused alphabetically
   unusedLangs.sort((a, b) => a.name.localeCompare(b.name))
   
-  // Add used languages first
   if (usedLangs.length > 0) {
     const recentGroup = document.createElement('optgroup')
     recentGroup.label = 'Recently Used'
@@ -85,7 +123,6 @@ async function loadLanguages() {
     select.appendChild(recentGroup)
   }
   
-  // Add other languages
   if (unusedLangs.length > 0) {
     const otherGroup = document.createElement('optgroup')
     otherGroup.label = 'Other Languages'
@@ -98,7 +135,6 @@ async function loadLanguages() {
     select.appendChild(otherGroup)
   }
   
-  // Select most recent language as default
   if (langHistory.length > 0) {
     select.value = langHistory[langHistory.length - 1]
   }
@@ -108,7 +144,6 @@ async function loadQuizzes(){
   const r = await fetch('/quizzes/', {headers: {'Authorization': 'Bearer ' + token}})
   const arr = await r.json()
   
-  // Fetch progress data
   const r2 = await fetch('/users/me/progress', {headers: {'Authorization': 'Bearer ' + token}})
   const progress = await r2.json()
   const progressMap = {}
@@ -121,7 +156,6 @@ async function loadQuizzes(){
   const node = document.getElementById('quizList')
   if (!Array.isArray(arr)) { node.innerText = 'Error loading quizzes'; return }
   
-  // Filter to only show quizzes created by the user
   const myQuizzes = arr.filter(q => q.is_mine !== false)
   
   if (!myQuizzes.length) { 
@@ -130,20 +164,35 @@ async function loadQuizzes(){
     const ul = document.createElement('div')
     myQuizzes.forEach(q => {
       const el = document.createElement('div')
-      el.style.margin = '10px 0'
+      el.className = 'drill-item'
       const prog = progressMap[q.id]
-      const scoreText = prog ? ` <span>Best: ${Math.round(prog.accuracy * 100)}% (${prog.attempts} attempts)</span>` : ''
+      const scoreText = prog ? ` <span style="color:var(--muted);font-size:0.9em">Best: ${Math.round(prog.accuracy * 100)}% (${prog.attempts} attempts)</span>` : ''
       const publicBadge = q.is_public ? ' <span style="background:#10b981;color:white;padding:2px 6px;border-radius:3px;font-size:0.8em">PUBLIC</span>' : ''
       const langDisplay = q.language_name || q.language || 'n/a'
-      const clearBtn = prog ? ` <button data-id="${q.id}" class="clear-results">Clear Results</button>` : ''
-      el.innerHTML = `<strong>${q.title}</strong>${publicBadge} (${langDisplay})${scoreText} — <button onclick="window.location.href='/quiz-editor?id=${q.id}'">Edit Questions</button> <button data-id="${q.id}" class="rename">Rename</button> <button data-id="${q.id}" class="delete">Delete</button> <button onclick="window.location.href='/take/${q.id}'">Take</button> <button data-id="${q.id}" data-title="${q.title}" class="share">Share</button>${clearBtn}`
+      const clearBtn = prog ? `<button data-id="${q.id}" class="clear-results">Clear Results</button>` : ''
+      
+      el.innerHTML = `
+        <div class="drill-header">
+          <div class="drill-info">
+            <strong>${q.title}</strong>${publicBadge} <span style="color:var(--muted)">(${langDisplay})</span>${scoreText}
+          </div>
+          <button class="toggle-actions" data-id="${q.id}">Actions ▼</button>
+        </div>
+        <div class="drill-actions" id="actions-${q.id}">
+          <button onclick="window.location.href='/take/${q.id}'">Take Drill</button>
+          <button onclick="window.location.href='/quiz-editor?id=${q.id}'">Edit</button>
+          <button data-id="${q.id}" class="rename">Rename</button>
+          <button data-id="${q.id}" data-title="${q.title}" class="share">Share</button>
+          ${clearBtn}
+          <button data-id="${q.id}" class="delete" style="background:#ef4444;">Delete</button>
+        </div>
+      `
       ul.appendChild(el)
     })
     node.innerHTML = ''
     node.appendChild(ul)
   }
   
-  // Load saved quizzes
   const r3 = await fetch('/quizzes/saved', {headers: {'Authorization': 'Bearer ' + token}})
   const savedArr = await r3.json()
   const savedNode = document.getElementById('savedQuizList')
@@ -154,12 +203,26 @@ async function loadQuizzes(){
     const ul = document.createElement('div')
     savedArr.forEach(q => {
       const el = document.createElement('div')
-      el.style.margin = '10px 0'
+      el.className = 'drill-item'
       const prog = progressMap[q.id]
-      const scoreText = prog ? ` <span style="color:#10b981">Best: ${Math.round(prog.accuracy * 100)}% (${prog.attempts} attempts)</span>` : ''
+      const scoreText = prog ? ` <span style="color:var(--muted);font-size:0.9em">Best: ${Math.round(prog.accuracy * 100)}% (${prog.attempts} attempts)</span>` : ''
       const langDisplay = q.language_name || q.language || 'n/a'
-      const clearBtn = prog ? ` <button data-id="${q.id}" class="clear-results">Clear Results</button>` : ''
-      el.innerHTML = `<strong>${q.title}</strong> (${langDisplay})${scoreText} — <a href="/take/${q.id}">Take</a> <button data-id="${q.id}" data-title="${q.title}" class="share">Share</button> <button data-id="${q.id}" class="unsave">Remove</button>${clearBtn}`
+      const clearBtn = prog ? `<button data-id="${q.id}" class="clear-results">Clear Results</button>` : ''
+      
+      el.innerHTML = `
+        <div class="drill-header">
+          <div class="drill-info">
+            <strong>${q.title}</strong> <span style="color:var(--muted)">(${langDisplay})</span>${scoreText}
+          </div>
+          <button class="toggle-actions" data-id="${q.id}">Actions ▼</button>
+        </div>
+        <div class="drill-actions" id="actions-${q.id}">
+          <button onclick="window.location.href='/take/${q.id}'">Take Drill</button>
+          <button data-id="${q.id}" data-title="${q.title}" class="share">Share</button>
+          ${clearBtn}
+          <button data-id="${q.id}" class="unsave" style="background:#ef4444;">Remove</button>
+        </div>
+      `
       ul.appendChild(el)
     })
     savedNode.innerHTML = ''
@@ -173,12 +236,9 @@ document.getElementById('newQuizForm').onsubmit = async (e) => {
   const language = e.target.language.value
   const is_public = e.target.is_public.checked
   
-  // Save language to history
   const langHistory = JSON.parse(localStorage.getItem('languageHistory') || '[]')
-  // Remove if already exists and add to end (most recent)
   const filtered = langHistory.filter(code => code !== language)
   filtered.push(language)
-  // Keep only last 10 languages
   const updated = filtered.slice(-10)
   localStorage.setItem('languageHistory', JSON.stringify(updated))
   
@@ -190,6 +250,26 @@ document.getElementById('newQuizForm').onsubmit = async (e) => {
     alert('Create failed: ' + JSON.stringify(js)) 
   }
 }
+
+document.addEventListener('click', (e) => {
+  if (e.target.classList.contains('toggle-actions')) {
+    const quizId = e.target.dataset.id;
+    const actionsDiv = document.getElementById(`actions-${quizId}`);
+    const isExpanded = actionsDiv.classList.contains('expanded');
+    
+    document.querySelectorAll('.drill-actions.expanded').forEach(div => {
+      div.classList.remove('expanded');
+    });
+    document.querySelectorAll('.toggle-actions').forEach(btn => {
+      btn.textContent = 'Actions ▼';
+    });
+    
+    if (!isExpanded) {
+      actionsDiv.classList.add('expanded');
+      e.target.textContent = 'Actions ▲';
+    }
+  }
+});
 
 document.getElementById('quizList').addEventListener('click', async (e)=>{
   const el = e.target
@@ -285,13 +365,12 @@ async function downloadDrillCSV() {
     const r = await fetch(`/quizzes/${currentShareQuizId}`, {headers: {'Authorization': 'Bearer ' + token}});
     const quiz = await r.json();
     
-    // Build CSV content
     let csv = 'Question Type,Question Text,Question Image,Details\n';
     
     quiz.questions.forEach((q, idx) => {
       const qNum = idx + 1;
       const qType = q.type;
-      const qText = (q.prompt_text || '').replace(/"/g, '""'); // Escape quotes
+      const qText = (q.prompt_text || '').replace(/"/g, '""');
       const qImage = q.prompt_image_url || '';
       
       if (qType === 'multiple_choice') {
@@ -318,7 +397,6 @@ async function downloadDrillCSV() {
       }
     });
     
-    // Create download
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -350,7 +428,6 @@ async function handleCSVUpload(fileInput) {
         return;
       }
       
-      // Get drill title and language from user
       const title = prompt('Enter drill title:');
       if (!title) {
         fileInput.value = '';
@@ -363,7 +440,6 @@ async function handleCSVUpload(fileInput) {
         return;
       }
       
-      // Create the drill first
       const createResponse = await fetch('/quizzes/', {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
@@ -379,12 +455,10 @@ async function handleCSVUpload(fileInput) {
       const quiz = await createResponse.json();
       const quizId = quiz.id;
       
-      // Parse CSV (skip header row)
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line) continue;
         
-        // Parse CSV line (handle quoted fields)
         const fields = parseCSVLine(line);
         if (fields.length < 4) continue;
         
@@ -393,7 +467,6 @@ async function handleCSVUpload(fileInput) {
         let payload = null;
         
         if (qType === 'Multiple Choice') {
-          // Parse options from details (format: "[CORRECT] text | text | ...")
           const optionTexts = details.split(' | ').map(opt => opt.trim());
           const options = optionTexts.map(opt => {
             const isCorrect = opt.startsWith('[CORRECT]');
@@ -409,11 +482,9 @@ async function handleCSVUpload(fileInput) {
           };
           
         } else if (qType === 'Cloze') {
-          // Parse blanks from details (format: "Blanks: word (alts: alt1, alt2) | word2 | ...")
           const blanksText = details.replace('Blanks: ', '');
           const blankParts = blanksText.split(' | ').map(b => b.trim());
           
-          // Find blank positions in the text
           const blanks = [];
           let searchPos = 0;
           
@@ -425,7 +496,6 @@ async function handleCSVUpload(fileInput) {
             const altsStr = match[2];
             const alternates = altsStr ? altsStr.split(',').map(a => a.trim()) : [];
             
-            // Find the word in the text
             const pos = qText.indexOf(word, searchPos);
             if (pos !== -1) {
               blanks.push({
@@ -449,7 +519,6 @@ async function handleCSVUpload(fileInput) {
           };
           
         } else if (qType === 'Word Match') {
-          // Parse pairs from details (format: "left → right | left2 → right2")
           const pairTexts = details.split(' | ').map(p => p.trim());
           const pairs = pairTexts.map(pairText => {
             const parts = pairText.split('→').map(p => p.trim());
@@ -474,7 +543,6 @@ async function handleCSVUpload(fileInput) {
           };
         }
         
-        // Create the question
         if (payload) {
           await fetch(`/quizzes/${quizId}/questions`, {
             method: 'POST',
@@ -508,15 +576,12 @@ function parseCSVLine(line) {
     
     if (char === '"') {
       if (inQuotes && nextChar === '"') {
-        // Escaped quote
         current += '"';
         i++;
       } else {
-        // Toggle quote state
         inQuotes = !inQuotes;
       }
     } else if (char === ',' && !inQuotes) {
-      // Field separator
       fields.push(current);
       current = '';
     } else {
