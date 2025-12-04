@@ -25,13 +25,13 @@
       <h1>DrillBuilder</h1>
       <nav>
         <span>
-          <a href="/">Home</a> | <a href="/browse">Browse Drills</a>
+          <button onclick="window.location='/'">Home</button> <button onclick="window.location='/browse'">Browse Drills</button>
         </span>
         <span style="float:right;display:none;" id="navAuthd">
-          <a href="/dashboard">Dashboard</a> | <a href="/settings">Settings</a> | <a href="#" id="navLogout">Logout</a>
+          <button onclick="window.location='/dashboard'">Dashboard</button> <button onclick="window.location='/settings'">Settings</button> <button id="navLogout">Logout</button>
         </span>
         <span style="float:right;" id="navAuth">
-          <a href="/register" id="navRegister">Register</a> | <a href="/login" id="navLogin">Login</a>
+          <button onclick="window.location='/register'" id="navRegister">Register</button> <button onclick="window.location='/login'" id="navLogin">Login</button>
         </span>
       </nav>
     </header>
